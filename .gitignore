@@ -1,0 +1,35 @@
+# STM32CubeIDE / Eclipse workspace junk
+.metadata/
+.settings/
+*.launch
+*.log
+*.tmp
+
+# Build outputs
+Debug/
+Release/
+*.o
+*.d
+*.elf
+*.bin
+*.hex
+*.map
+*.list
+
+# IDE backups and local files
+*.bak
+*.swp
+*.autosave
+*.user
+*.suo
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# STM32CubeMX generated code cache
+*.ioc-backup
+
+# Ignore all auto-generated STM32 HAL drivers in all subfolders
+**/Drivers/
+
