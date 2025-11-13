@@ -29,7 +29,3 @@ Thumbs.db
 
 # STM32CubeMX generated code cache
 *.ioc-backup
-
-# Ignore all auto-generated STM32 HAL drivers in all subfolders
-**/Drivers/
-
