@@ -2,8 +2,7 @@
 
 **Contributors:**  
 Jungeun Seo • Sophie Yang • Ruey Day • Yi Keen Lim  
-**Course:** EECS 373 (Embedded Systems)  
-**Instructor:** University of Michigan  
+**Course:** EECS 373 (Embedded Systems) at the University of Michigan  
 
 ---
 
