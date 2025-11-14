@@ -22,6 +22,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "stdio.h"
+#include "math.h"
+#include "string.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -54,6 +56,7 @@ static uint8_t x = 0;
 float left_motor_speed = 0.0f;
 float right_motor_speed = 0.0f;
 uint8_t uart_buffer[2];
+char xbee_buffer[100];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -78,18 +81,53 @@ void HAL_GPIO_EXTI_Callback(uint16_t pin) {
 	printf("Interrupt number: %d\n\r", pin);
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, x);
 	for(uint32_t i = 0; i < 400; i++);
-	if(x % 2 == 0) {
-		x++;
-	}
-	else {
-		x--;
-	}
+	if(x % 2 == 0) {x++;}
+	else {x--;}
 
 	return;
 }
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 	return;
+}
+
+void xbee_send(const char* cmd) {
+	HAL_UART_Transmit(&huart4, (uint8_t*)cmd, strlen(cmd), 100);
+	HAL_UART_Transmit(&huart4, (uint8_t*)"\r", 1, 100);
+}
+
+uint8_t xbee_enter_command() {
+	HAL_Delay(1000); ///need to wait before and after to guard
+	HAL_UART_Transmit(&huart4, (uint8_t*)"+++", 3, 100);
+	HAL_Delay(1000);
+
+	return 1;
+}
+
+void xbee_coord_setup() {
+	if(xbee_enter_command()) {
+		xbee_send("ATID 1111");
+		xbee_send("ATMY 1");
+		xbee_send("ATDL 2");
+		xbee_send("ATWR");
+		xbee_send("ATCN");
+	}
+	else {
+		printf("xbee coordinator setup failed! \r\n");
+	}
+}
+
+void xbee_router_setup() {
+	if(xbee_enter_command()) {
+		xbee_send("ATID 1111");
+		xbee_send("ATMY 2");
+		xbee_send("ATDL 1");
+		xbee_send("ATWR");
+		xbee_send("ATCN");
+	}
+	else {
+		printf("xbee router setup failed! \r\n");
+	}
 }
 
 // Convert ADC values to normalized range [-1.0, +1.0]
@@ -186,6 +224,8 @@ int main(void)
   MX_TIM2_Init();
   MX_UART4_Init();
   /* USER CODE BEGIN 2 */
+  xbee_coord_setup();
+  HAL_Delay(1000);
   HAL_ADC_Start_DMA(&hadc1, adc_buffer, 2);
 
   /* USER CODE END 2 */
@@ -201,8 +241,8 @@ int main(void)
 
 		printf("-------------------------\r\n");
 
-		printf("x values: %d\n\r", adc_buffer[0]);
-		printf("y values: %d\n\r", adc_buffer[1]);
+		printf("x values: %ld\n\r", adc_buffer[0]);
+		printf("y values: %ld\n\r", adc_buffer[1]);
 		printf("L: %6.2f, R: %6.2f\r\n", left_motor_speed, right_motor_speed);
 
 		uart_buffer[0] = adc_to_8bit(adc_buffer[0]);
