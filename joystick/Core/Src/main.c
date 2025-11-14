@@ -41,21 +41,29 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
 
 UART_HandleTypeDef hlpuart1;
+UART_HandleTypeDef huart4;
 
 TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
-
+static uint32_t adc_buffer[2];
+static uint8_t x = 0;
+float left_motor_speed = 0.0f;
+float right_motor_speed = 0.0f;
+uint8_t uart_buffer[2];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_LPUART1_UART_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_UART4_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -63,15 +71,14 @@ static void MX_TIM2_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 void HAL_GPIO_EXTI_Callback(uint16_t pin) {
-	static uint8_t x;
-	static uint8_t check;
+
 	if(pin == 5) {
 
 	}
 	printf("Interrupt number: %d\n\r", pin);
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, (x % 2));
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, x);
 	for(uint32_t i = 0; i < 400; i++);
-	if(check) {
+	if(x % 2 == 0) {
 		x++;
 	}
 	else {
@@ -79,6 +86,69 @@ void HAL_GPIO_EXTI_Callback(uint16_t pin) {
 	}
 
 	return;
+}
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
+	return;
+}
+
+// Convert ADC values to normalized range [-1.0, +1.0]
+float normalize_adc(uint32_t adc_val) {
+    return ((float)adc_val - 2047.5f) / 2047.5f;  // Center at 0, range ±1.0
+}
+
+// Differential drive forward kinematics
+void calculate_wheel_speeds(uint32_t x_adc, uint32_t y_adc, float *left, float *right) {
+    float x = normalize_adc(x_adc);  // Turning
+    float y = normalize_adc(y_adc);  // Forward/backward
+
+    // Apply deadzone to prevent drift
+    float deadzone = 0.1f;
+    if (fabs(x) < deadzone) x = 0.0f;
+    if (fabs(y) < deadzone) y = 0.0f;
+
+    // Differential drive mixing
+    *left = y + x;   // Left wheel
+    *right = y - x;  // Right wheel
+
+    // Normalize to [-1.0, +1.0] range
+    float max_val = fmaxf(fabsf(*left), fabsf(*right));
+    if (max_val > 1.0f) {
+        *left /= max_val;
+        *right /= max_val;
+    }
+}
+
+// Optional: Apply non-linear response for better control
+void calculate_wheel_speeds_smooth(uint32_t x_adc, uint32_t y_adc, float *left, float *right) {
+    float x = normalize_adc(x_adc);
+    float y = normalize_adc(y_adc);
+
+    // Deadzone
+    float deadzone = 0.1f;
+    if (fabsf(x) < deadzone) x = 0.0f;
+    if (fabsf(y) < deadzone) y = 0.0f;
+
+    // Apply cubic scaling for finer control at low speeds
+    x = x * x * x;  // Or use x * fabsf(x) for quadratic
+    y = y * y * y;
+
+    // Differential drive
+    *left = y + x;
+    *right = y - x;
+
+    // Normalize
+    float max_val = fmaxf(fabsf(*left), fabsf(*right));
+    if (max_val > 1.0f) {
+        *left /= max_val;
+        *right /= max_val;
+    }
+}
+
+// Convert ADC to float (0.0 to 1.0 range) then to 8-bit
+uint8_t adc_to_8bit(uint32_t adc_val) {
+    float normalized = (float)adc_val / 4095.0f;  // 0.0 to 1.0
+    return (uint8_t)(normalized * 255.0f);        // Scale to 0-255
 }
 /* USER CODE END 0 */
 
@@ -90,11 +160,6 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-	volatile static uint32_t x_val = 0;
-	volatile static uint32_t y_val = 0;
-	ADC_ChannelConfTypeDef ADC_CH_Cfg = {0};
-	ADC_CH_Cfg.Rank =  ADC_REGULAR_RANK_1;
-	ADC_CH_Cfg.SamplingTime = ADC_SAMPLETIME_47CYCLES_5;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -115,10 +180,13 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_ADC1_Init();
   MX_LPUART1_UART_Init();
   MX_TIM2_Init();
+  MX_UART4_Init();
   /* USER CODE BEGIN 2 */
+  HAL_ADC_Start_DMA(&hadc1, adc_buffer, 2);
 
   /* USER CODE END 2 */
 
@@ -129,24 +197,22 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  printf("-------------------------\r\n");
-	  ADC_CH_Cfg.Channel = ADC_CHANNEL_1;
-	  HAL_ADC_ConfigChannel(&hadc1, &ADC_CH_Cfg);
-	  HAL_ADC_Start(&hadc1);//start conversion
-	  HAL_ADC_PollForConversion(&hadc1, 0xFFFFFFFF);//wait for conversion to finish
-	  x_val = HAL_ADC_GetValue(&hadc1);//retrieve value
-	  printf("x values: %d\n\r", (int)x_val);
+	  calculate_wheel_speeds(adc_buffer[0], adc_buffer[1], &left_motor_speed, &right_motor_speed);
 
-	  ADC_CH_Cfg.Channel = 2;
-	  HAL_ADC_ConfigChannel(&hadc1, &ADC_CH_Cfg);
-	  HAL_ADC_Start(&hadc1);//start conversion
-	  HAL_ADC_PollForConversion(&hadc1, 0xFFFFFFFF);//wait for conversion to finish
-	  y_val = HAL_ADC_GetValue(&hadc1);//retrieve value
-	  printf("y values: %d\n\r", (int)y_val);
-	  HAL_Delay(500);
-//	  HAL_GPIO_WritePin(GPIOB,GPIO_PIN_7, GPIO_PIN_RESET);
-//	  HAL_Delay(500);
-//	  HAL_GPIO_WritePin(GPIOB,GPIO_PIN_7, GPIO_PIN_RESET);
+		printf("-------------------------\r\n");
+
+		printf("x values: %d\n\r", adc_buffer[0]);
+		printf("y values: %d\n\r", adc_buffer[1]);
+		printf("L: %6.2f, R: %6.2f\r\n", left_motor_speed, right_motor_speed);
+
+		uart_buffer[0] = adc_to_8bit(adc_buffer[0]);
+		uart_buffer[1] = adc_to_8bit(adc_buffer[1]);
+		printf("left uart: %d\n\r", uart_buffer[0]);
+		printf("right uart: %d\n\r", uart_buffer[1]);
+
+		HAL_UART_Transmit(&huart4, uart_buffer, 2, 100);
+		//HAL_MAX_DELAY
+		HAL_Delay(50);
   }
   /* USER CODE END 3 */
 }
@@ -177,7 +243,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
   RCC_OscInitStruct.PLL.PLLM = 1;
-  RCC_OscInitStruct.PLL.PLLN = 16;
+  RCC_OscInitStruct.PLL.PLLN = 32;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
   RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
@@ -195,7 +261,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
   {
     Error_Handler();
   }
@@ -222,18 +288,18 @@ static void MX_ADC1_Init(void)
   /** Common config
   */
   hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV32;
-  hadc1.Init.Resolution = ADC_RESOLUTION_10B;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV16;
+  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
+  hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
   hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   hadc1.Init.LowPowerAutoWait = DISABLE;
-  hadc1.Init.ContinuousConvMode = DISABLE;
-  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.ContinuousConvMode = ENABLE;
+  hadc1.Init.NbrOfConversion = 2;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-  hadc1.Init.DMAContinuousRequests = DISABLE;
+  hadc1.Init.DMAContinuousRequests = ENABLE;
   hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
   hadc1.Init.OversamplingMode = DISABLE;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
@@ -245,10 +311,19 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_1;
   sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_47CYCLES_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_12CYCLES_5;
   sConfig.SingleDiff = ADC_SINGLE_ENDED;
   sConfig.OffsetNumber = ADC_OFFSET_NONE;
   sConfig.Offset = 0;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_2;
+  sConfig.Rank = ADC_REGULAR_RANK_2;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -308,6 +383,54 @@ static void MX_LPUART1_UART_Init(void)
 }
 
 /**
+  * @brief UART4 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_UART4_Init(void)
+{
+
+  /* USER CODE BEGIN UART4_Init 0 */
+
+  /* USER CODE END UART4_Init 0 */
+
+  /* USER CODE BEGIN UART4_Init 1 */
+
+  /* USER CODE END UART4_Init 1 */
+  huart4.Instance = UART4;
+  huart4.Init.BaudRate = 115200;
+  huart4.Init.WordLength = UART_WORDLENGTH_8B;
+  huart4.Init.StopBits = UART_STOPBITS_1;
+  huart4.Init.Parity = UART_PARITY_NONE;
+  huart4.Init.Mode = UART_MODE_TX_RX;
+  huart4.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart4.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart4.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart4.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+  huart4.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetTxFifoThreshold(&huart4, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetRxFifoThreshold(&huart4, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_DisableFifoMode(&huart4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN UART4_Init 2 */
+
+  /* USER CODE END UART4_Init 2 */
+
+}
+
+/**
   * @brief TIM2 Initialization Function
   * @param None
   * @retval None
@@ -356,6 +479,23 @@ static void MX_TIM2_Init(void)
 }
 
 /**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMAMUX1_CLK_ENABLE();
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -375,9 +515,6 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOG_CLK_ENABLE();
   HAL_PWREx_EnableVddIO2();
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_RESET);
-
   /*Configure GPIO pin : PC13 */
   GPIO_InitStruct.Pin = GPIO_PIN_13;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
@@ -388,13 +525,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pin = GPIO_PIN_2;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PB7 */
-  GPIO_InitStruct.Pin = GPIO_PIN_7;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
