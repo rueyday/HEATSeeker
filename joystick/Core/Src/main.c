@@ -144,9 +144,7 @@ void xbee_coord_setup() {
 		xbee_send("ATID 1111");
 		xbee_send("ATCH 10");
 		xbee_send("ATMY 1");
-		xbee_send("ATDH 0");
 		xbee_send("ATDL 2");
-		//xbee_send("ATBD 7");
 		xbee_send("ATWR");
 		xbee_send("ATCN");
 	}
@@ -160,9 +158,7 @@ void xbee_router_setup() {
 		xbee_send("ATID 1111");
 		xbee_send("ATCH 10");
 		xbee_send("ATMY 2");
-		xbee_send("ATDH 0");
 		xbee_send("ATDL 1");
-		//xbee_send("ATBD 7");
 		xbee_send("ATWR");
 		xbee_send("ATCN");
 	}

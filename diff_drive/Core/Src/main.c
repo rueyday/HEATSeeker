@@ -21,7 +21,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <stdio.h>
+#include "stdio.h"
+#include "math.h"
+#include "string.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -46,7 +48,9 @@ UART_HandleTypeDef huart5;
 TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
-
+static uint32_t adc_buffer[2];
+uint8_t uart_buffer[2];
+char xbee_buffer[100];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -61,6 +65,78 @@ static void MX_LPUART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+int xbee_readline(char *buf, int maxlen)
+{
+    int i = 0;
+    uint8_t ch;
+    while (i < maxlen - 1) {
+        if (HAL_UART_Receive(&huart5, &ch, 1, 500) != HAL_OK) {
+            break;  // timeout
+        }
+        buf[i++] = ch;
+        if (ch == '\r' || ch == '\n') break;
+    }
+    buf[i] = '\0';
+    return i;
+}
+
+void xbee_send(const char* cmd) {
+	HAL_UART_Transmit(&huart5, (uint8_t*)cmd, strlen(cmd), 100);
+	HAL_UART_Transmit(&huart5, (uint8_t*)"\r", 1, 100);
+}
+
+uint8_t xbee_enter_command(void)
+{
+    uint8_t resp[8];
+    HAL_StatusTypeDef st;
+
+    HAL_Delay(1000);   // guard time before
+    uint8_t plus[3] = {'+', '+', '+'};
+    HAL_UART_Transmit(&huart5, plus, 3, 100);
+    HAL_Delay(1000);   // guard time after
+
+    // XBee should respond with "OK\r"
+    st = HAL_UART_Receive(&huart5, resp, 3, 500);  // read 3 bytes
+
+    printf("enter cmd resp: st=%d, bytes=%02X %02X %02X\r\n",
+           st, resp[0], resp[1], resp[2]);
+
+    // check for "OK\r"
+    if (st == HAL_OK && resp[0] == 'O' && resp[1] == 'K')
+        return 1;
+    else
+        return 0;
+}
+
+void xbee_coord_setup() {
+	if(xbee_enter_command()) {
+		xbee_send("ATID 1111");
+		xbee_send("ATCH 10");
+		xbee_send("ATMY 1");
+		xbee_send("ATDL 2");
+		xbee_send("ATWR");
+		xbee_send("ATCN");
+	}
+	else {
+		printf("xbee coordinator setup failed! \r\n");
+	}
+}
+
+void xbee_router_setup() {
+	if(xbee_enter_command()) {
+		xbee_send("ATID 1111");
+		xbee_send("ATCH 10");
+		xbee_send("ATMY 2");
+		xbee_send("ATDL 1");
+		xbee_send("ATWR");
+		xbee_send("ATCN");
+	}
+	else {
+		printf("xbee router setup failed! \r\n");
+	}
+}
+
+
 // Direction pins (example)
 #define DIR_L1_PORT GPIOA
 #define DIR_L1_PIN  GPIO_PIN_0
@@ -157,9 +233,13 @@ int main(void)
   motors_gpio_init();
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
-
+  HAL_Delay(1000);
+  xbee_router_setup();
+  HAL_Delay(1000);
   uint8_t buf[2];
   int count = 100;
+  uint8_t left_value;
+  uint8_t right_value;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -169,52 +249,51 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-//	  HAL_StatusTypeDef status = HAL_UART_Receive(&huart5, buf, 2, 200);
-//	  printf("loop\n\r");
-//	  uint8_t left_value = buf[0];
-//	  uint8_t right_value = buf[1];
+	  HAL_StatusTypeDef status = HAL_UART_Receive(&huart5, buf, 2, 1000);
+	  left_value = buf[0];
+	  right_value = buf[1];
 //	  printf("test\n\r");
-	  if(count > 90){
-		  motor_right_forward(120000);
-		  motor_left_forward(120000);
-	  }else if(count > 80){
-		  motor_right_reverse(120000);
-		  motor_left_reverse(120000);
-	  }else if(count > 70){
-		  motor_right_forward(120000);
-		  motor_left_reverse(120000);
-	  }else if(count > 60){
-		  motor_left_forward(120000);
-		  motor_right_reverse(120000);
-	  }else{
-		  motor_left_stop();
-		  motor_right_stop();
-	  }
-	  count--;
-//	  if (left_value != 0 && right_value != 0) {
-//		  printf("status: %d left: %d, right: %d\n\r", status, left_value, right_value);
-//		  if(left_value < 128){
-//			  uint32_t left_pwm = (50000*(128-(uint32_t)left_value))/128+70000;
-//			  uint32_t right_pwm = (50000*(128-(uint32_t)right_value))/128+70000;
-//			  motor_left_reverse(left_pwm);
-//			  motor_right_reverse(right_pwm);
-//		  }else{
-//			  uint32_t left_pwm = (50000*((uint32_t)left_value-128))/128+70000;
-//			  uint32_t right_pwm = (50000*((uint32_t)right_value-128))/128+70000;
-//			  motor_right_forward(left_pwm);   // 50% speed
-//			  motor_left_forward(right_pwm);   // 50% speed
-//		  }
-//	  } else {
+//	  if(count > 90){
+//		  motor_right_forward(120000);
+//		  motor_left_forward(120000);
+//	  }else if(count > 80){
+//		  motor_right_reverse(120000);
+//		  motor_left_reverse(120000);
+//	  }else if(count > 70){
+//		  motor_right_forward(120000);
+//		  motor_left_reverse(120000);
+//	  }else if(count > 60){
+//		  motor_left_forward(120000);
+//		  motor_right_reverse(120000);
+//	  }else{
 //		  motor_left_stop();
 //		  motor_right_stop();
 //	  }
+//	  count--;
+	  if (left_value != 0 && right_value != 0) {
+		  printf("status: %d left: %d, right: %d\n\r", status, left_value, right_value);
+		  if(left_value < 128){
+			  uint32_t left_pwm = (50000*(128-(uint32_t)left_value))/128+70000;
+			  uint32_t right_pwm = (50000*(128-(uint32_t)right_value))/128+70000;
+			  motor_left_reverse(left_pwm);
+			  motor_right_reverse(right_pwm);
+		  }else{
+			  uint32_t left_pwm = (50000*((uint32_t)left_value-128))/128+70000;
+			  uint32_t right_pwm = (50000*((uint32_t)right_value-128))/128+70000;
+			  motor_right_forward(left_pwm);   // 50% speed
+			  motor_left_forward(right_pwm);   // 50% speed
+		  }
+	  } else {
+		  motor_left_stop();
+		  motor_right_stop();
+	  }
 //	  motor_right_forward(500);  // 50% speed
 //	  motor_left_forward(120000);   // 30% speed
 //	  motor_right_reverse(300);
 //	  HAL_Delay(2000);
 //	  motor_right_stop();
 //	  motor_right_reverse(0);
-	  HAL_Delay(200);
+	  HAL_Delay(1000);
   }
   /* USER CODE END 3 */
 }
@@ -327,7 +406,7 @@ static void MX_UART5_Init(void)
 
   /* USER CODE END UART5_Init 1 */
   huart5.Instance = UART5;
-  huart5.Init.BaudRate = 115200;
+  huart5.Init.BaudRate = 9600;
   huart5.Init.WordLength = UART_WORDLENGTH_8B;
   huart5.Init.StopBits = UART_STOPBITS_1;
   huart5.Init.Parity = UART_PARITY_NONE;

@@ -44,11 +44,11 @@
 /* Private variables ---------------------------------------------------------*/
 UART_HandleTypeDef hlpuart1;
 UART_HandleTypeDef huart4;
+UART_HandleTypeDef huart5;
 
 TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
-static uint32_t adc_buffer[2];
 uint8_t uart_buffer[2];
 char xbee_buffer[100];
 /* USER CODE END PV */
@@ -59,6 +59,7 @@ static void MX_GPIO_Init(void);
 static void MX_LPUART1_UART_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_UART4_Init(void);
+static void MX_UART5_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -71,7 +72,7 @@ int xbee_readline(char *buf, int maxlen)
     int i = 0;
     uint8_t ch;
     while (i < maxlen - 1) {
-        if (HAL_UART_Receive(&huart4, &ch, 1, 500) != HAL_OK) {
+        if (HAL_UART_Receive(&huart5, &ch, 1, 500) != HAL_OK) {
             break;  // timeout
         }
         buf[i++] = ch;
@@ -82,8 +83,8 @@ int xbee_readline(char *buf, int maxlen)
 }
 
 void xbee_send(const char* cmd) {
-	HAL_UART_Transmit(&huart4, (uint8_t*)cmd, strlen(cmd), 100);
-	HAL_UART_Transmit(&huart4, (uint8_t*)"\r", 1, 100);
+	HAL_UART_Transmit(&huart5, (uint8_t*)cmd, strlen(cmd), 100);
+	HAL_UART_Transmit(&huart5, (uint8_t*)"\r", 1, 100);
 }
 
 uint8_t xbee_enter_command(void)
@@ -93,11 +94,11 @@ uint8_t xbee_enter_command(void)
 
     HAL_Delay(1000);   // guard time before
     uint8_t plus[3] = {'+', '+', '+'};
-    HAL_UART_Transmit(&huart4, plus, 3, 100);
+    HAL_UART_Transmit(&huart5, plus, 3, 100);
     HAL_Delay(1000);   // guard time after
 
     // XBee should respond with "OK\r"
-    st = HAL_UART_Receive(&huart4, resp, 3, 500);  // read 3 bytes
+    st = HAL_UART_Receive(&huart5, resp, 3, 500);  // read 3 bytes
 
     printf("enter cmd resp: st=%d, bytes=%02X %02X %02X\r\n",
            st, resp[0], resp[1], resp[2]);
@@ -128,7 +129,7 @@ void xbee_router_setup() {
 		xbee_send("ATID 1111");
 		xbee_send("ATCH 10");
 		xbee_send("ATMY 2");
-		xbee_send("ATDH 0");
+		xbee_send("ATDL 1");
 		xbee_send("ATWR");
 		xbee_send("ATCN");
 	}
@@ -171,6 +172,7 @@ int main(void)
   MX_LPUART1_UART_Init();
   MX_TIM2_Init();
   MX_UART4_Init();
+  MX_UART5_Init();
   /* USER CODE BEGIN 2 */
   xbee_router_setup();
   HAL_Delay(1000);
@@ -183,7 +185,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	HAL_UART_Receive(&huart4, uart_buffer, 2, 100);
+	HAL_UART_Receive(&huart5, uart_buffer, 2, 100);
 	printf("left: %d, right: %d\r\n", uart_buffer[0], uart_buffer[1]);
 	//HAL_MAX_DELAY
 	HAL_Delay(1000);
@@ -338,6 +340,54 @@ static void MX_UART4_Init(void)
 }
 
 /**
+  * @brief UART5 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_UART5_Init(void)
+{
+
+  /* USER CODE BEGIN UART5_Init 0 */
+
+  /* USER CODE END UART5_Init 0 */
+
+  /* USER CODE BEGIN UART5_Init 1 */
+
+  /* USER CODE END UART5_Init 1 */
+  huart5.Instance = UART5;
+  huart5.Init.BaudRate = 9600;
+  huart5.Init.WordLength = UART_WORDLENGTH_8B;
+  huart5.Init.StopBits = UART_STOPBITS_1;
+  huart5.Init.Parity = UART_PARITY_NONE;
+  huart5.Init.Mode = UART_MODE_TX_RX;
+  huart5.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart5.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart5.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart5.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+  huart5.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart5) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetTxFifoThreshold(&huart5, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetRxFifoThreshold(&huart5, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_DisableFifoMode(&huart5) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN UART5_Init 2 */
+
+  /* USER CODE END UART5_Init 2 */
+
+}
+
+/**
   * @brief TIM2 Initialization Function
   * @param None
   * @retval None
@@ -402,6 +452,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOG_CLK_ENABLE();
   HAL_PWREx_EnableVddIO2();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
