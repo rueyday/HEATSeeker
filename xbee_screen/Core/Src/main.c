@@ -65,22 +65,54 @@ static void MX_UART4_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+int xbee_readline(char *buf, int maxlen)
+{
+    int i = 0;
+    uint8_t ch;
+    while (i < maxlen - 1) {
+        if (HAL_UART_Receive(&huart4, &ch, 1, 500) != HAL_OK) {
+            break;  // timeout
+        }
+        buf[i++] = ch;
+        if (ch == '\r' || ch == '\n') break;
+    }
+    buf[i] = '\0';
+    return i;
+}
+
 void xbee_send(const char* cmd) {
 	HAL_UART_Transmit(&huart4, (uint8_t*)cmd, strlen(cmd), 100);
 	HAL_UART_Transmit(&huart4, (uint8_t*)"\r", 1, 100);
 }
 
-uint8_t xbee_enter_command() {
-	HAL_Delay(1000); ///need to wait before and after to guard
-	HAL_UART_Transmit(&huart4, (uint8_t*)"+++", 3, 100);
-	HAL_Delay(1000);
+uint8_t xbee_enter_command(void)
+{
+    uint8_t resp[8];
+    HAL_StatusTypeDef st;
 
-	return 1;
+    HAL_Delay(1000);   // guard time before
+    uint8_t plus[3] = {'+', '+', '+'};
+    HAL_UART_Transmit(&huart4, plus, 3, 100);
+    HAL_Delay(1000);   // guard time after
+
+    // XBee should respond with "OK\r"
+    st = HAL_UART_Receive(&huart4, resp, 3, 500);  // read 3 bytes
+
+    printf("enter cmd resp: st=%d, bytes=%02X %02X %02X\r\n",
+           st, resp[0], resp[1], resp[2]);
+
+    // check for "OK\r"
+    if (st == HAL_OK && resp[0] == 'O' && resp[1] == 'K')
+        return 1;
+    else
+        return 0;
 }
 
 void xbee_coord_setup() {
 	if(xbee_enter_command()) {
 		xbee_send("ATID 1111");
+		xbee_send("ATCH 10");
 		xbee_send("ATMY 1");
 		xbee_send("ATDL 2");
 		xbee_send("ATWR");
@@ -94,8 +126,9 @@ void xbee_coord_setup() {
 void xbee_router_setup() {
 	if(xbee_enter_command()) {
 		xbee_send("ATID 1111");
+		xbee_send("ATCH 10");
 		xbee_send("ATMY 2");
-		xbee_send("ATDL 1");
+		xbee_send("ATDH 0");
 		xbee_send("ATWR");
 		xbee_send("ATCN");
 	}
@@ -153,7 +186,7 @@ int main(void)
 	HAL_UART_Receive(&huart4, uart_buffer, 2, 100);
 	printf("left: %d, right: %d\r\n", uart_buffer[0], uart_buffer[1]);
 	//HAL_MAX_DELAY
-	HAL_Delay(50);
+	HAL_Delay(1000);
   }
   /* USER CODE END 3 */
 }
@@ -272,7 +305,7 @@ static void MX_UART4_Init(void)
 
   /* USER CODE END UART4_Init 1 */
   huart4.Instance = UART4;
-  huart4.Init.BaudRate = 115200;
+  huart4.Init.BaudRate = 9600;
   huart4.Init.WordLength = UART_WORDLENGTH_8B;
   huart4.Init.StopBits = UART_STOPBITS_1;
   huart4.Init.Parity = UART_PARITY_NONE;
