@@ -6,7 +6,7 @@ Jungeun Seo • Sophie Yang • Ruey Day • Yi Keen Lim
 
 ---
 
-## 🧠 Project Overview
+## Project Overview
 
 **Heat Seeker** is an embedded systems project that integrates smart glasses and a remote-operated rescue robot to track and visualize heat signatures. The system enables a user to monitor a robot’s thermal camera feed through a head-up display (HUD) embedded in the glasses and control the robot remotely using a wireless controller.
 
@@ -14,7 +14,7 @@ The goal is to provide a lightweight, responsive, and intuitive human–robot in
 
 ---
 
-## 🚀 System Description
+## System Description
 
 ### Smart Glasses
 - **HUD Display:** Shows live robot camera feed, battery level, system heat, and movement direction.
@@ -34,7 +34,7 @@ The goal is to provide a lightweight, responsive, and intuitive human–robot in
 
 ---
 
-## ⚙️ System Architecture
+## System Architecture
 
 ### Functional Overview
 - The **robot** detects and transmits thermal data.
@@ -48,7 +48,7 @@ The goal is to provide a lightweight, responsive, and intuitive human–robot in
 
 ---
 
-## 🧩 Component List
+## Component List
 
 ### In-Lab Components
 - STM32 microcontroller board  
@@ -66,7 +66,7 @@ The goal is to provide a lightweight, responsive, and intuitive human–robot in
 
 ---
 
-## 🌟 Reach Goals
+## Reach Goals
 
 - Design a **custom PCB** for the glasses module  
 - Enable **video recording** and onboard SD storage  
@@ -76,7 +76,7 @@ The goal is to provide a lightweight, responsive, and intuitive human–robot in
 
 ---
 
-## 🔧 I/O Summary
+##  I/O Summary
 
 **Inputs:**
 - Power switches (glasses and robot)  
@@ -90,7 +90,7 @@ The goal is to provide a lightweight, responsive, and intuitive human–robot in
 
 ---
 
-## 📊 Diagrams
+## Diagrams
 
 ### System Overview
 - Robot ↔ Glasses ↔ Controller communication network  
@@ -100,7 +100,7 @@ The goal is to provide a lightweight, responsive, and intuitive human–robot in
 
 ---
 
-## 📚 References
+## References
 
 - **Range Sensor:** [VL53L1X Distance Sensor – STMicroelectronics](https://www.st.com/en/imaging-and-photonics-solutions/vl53l1x.html)  
 - **Thermal Camera:** [AMG8833 8x8 IR Array – Amazon](https://www.amazon.com/dp/B07V5Y8J91)  
@@ -108,7 +108,7 @@ The goal is to provide a lightweight, responsive, and intuitive human–robot in
 
 ---
 
-## 🏁 Summary
+## Summary
 
 **Heat Seeker** demonstrates the integration of embedded communication, sensing, and human–machine interfaces in a cohesive system. By merging wearable HUD technology with a thermal-tracking robot, this project explores how embedded systems can assist in real-world rescue and navigation tasks.
 
