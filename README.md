@@ -1,4 +1,4 @@
-# Heat Seeker: Smart Glasses with Remote-Operated Rescue Robot
+# HEATSeeker: Smart Glasses with Remote-Operated Rescue Robot
 
 **Contributors:**  
 Jungeun Seo • Sophie Yang • Ruey Day • Yi Keen Lim  
