@@ -48,7 +48,6 @@ UART_HandleTypeDef huart5;
 TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
-static uint32_t adc_buffer[2];
 uint8_t uart_buffer[2];
 char xbee_buffer[100];
 /* USER CODE END PV */
@@ -240,6 +239,7 @@ int main(void)
   int count = 100;
   uint8_t left_value;
   uint8_t right_value;
+  HAL_StatusTypeDef status ;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -249,9 +249,28 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  HAL_StatusTypeDef status = HAL_UART_Receive(&huart5, buf, 2, 1000);
+
+	  status = HAL_UART_Receive(&huart5, buf, 2, 700);
 	  left_value = buf[0];
 	  right_value = buf[1];
+//	  printf("status: %d left: %d, right: %d\n\r", status, left_value, right_value);
+	  if(status == 0){
+		  if(left_value < 128){
+			  uint32_t left_pwm = (50000*(128-(uint32_t)left_value))/128+70000;
+			  uint32_t right_pwm = (50000*(128-(uint32_t)right_value))/128+70000;
+			  motor_left_reverse(left_pwm);
+			  motor_right_reverse(right_pwm);
+		  }else{
+			  uint32_t left_pwm = (50000*((uint32_t)left_value-128))/128+70000;
+			  uint32_t right_pwm = (50000*((uint32_t)right_value-128))/128+70000;
+			  motor_right_forward(left_pwm);   // 50% speed
+			  motor_left_forward(right_pwm);   // 50% speed
+		  }
+	  }else{
+		  motor_left_stop();
+		  motor_right_stop();
+	  }
+
 //	  printf("test\n\r");
 //	  if(count > 90){
 //		  motor_right_forward(120000);
@@ -270,23 +289,12 @@ int main(void)
 //		  motor_right_stop();
 //	  }
 //	  count--;
-	  if (left_value != 0 && right_value != 0) {
-		  printf("status: %d left: %d, right: %d\n\r", status, left_value, right_value);
-		  if(left_value < 128){
-			  uint32_t left_pwm = (50000*(128-(uint32_t)left_value))/128+70000;
-			  uint32_t right_pwm = (50000*(128-(uint32_t)right_value))/128+70000;
-			  motor_left_reverse(left_pwm);
-			  motor_right_reverse(right_pwm);
-		  }else{
-			  uint32_t left_pwm = (50000*((uint32_t)left_value-128))/128+70000;
-			  uint32_t right_pwm = (50000*((uint32_t)right_value-128))/128+70000;
-			  motor_right_forward(left_pwm);   // 50% speed
-			  motor_left_forward(right_pwm);   // 50% speed
-		  }
-	  } else {
-		  motor_left_stop();
-		  motor_right_stop();
-	  }
+//	  if (left_value != 0 && right_value != 0) {
+//		  printf("status: %d left: %d, right: %d\n\r", status, left_value, right_value);
+
+//	  } else {
+
+//	  }
 //	  motor_right_forward(500);  // 50% speed
 //	  motor_left_forward(120000);   // 30% speed
 //	  motor_right_reverse(300);
@@ -320,7 +328,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = 0;
-  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
+  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_10;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -336,7 +344,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
   {
     Error_Handler();
   }
