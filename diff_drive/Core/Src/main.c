@@ -50,6 +50,10 @@ TIM_HandleTypeDef htim3;
 /* USER CODE BEGIN PV */
 uint8_t uart_buffer[2];
 char xbee_buffer[100];
+uint8_t xbee_int_buf[2];
+volatile uint8_t xbee_int_ready = 0;
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -64,6 +68,13 @@ static void MX_LPUART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+void MX_NVIC_Init(void)
+{
+    HAL_NVIC_SetPriority(UART5_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(UART5_IRQn);
+}
+
 int xbee_readline(char *buf, int maxlen)
 {
     int i = 0;
@@ -211,6 +222,11 @@ int main(void)
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
+  for (int i = 0; i < 10; i++) {
+      HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_0);
+      HAL_Delay(100);
+  }
+  printf("BOOT OK\r\n");
 
   /* USER CODE BEGIN Init */
 
@@ -220,7 +236,7 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+  MX_NVIC_Init();
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -237,6 +253,8 @@ int main(void)
   HAL_Delay(1000);
   uint8_t buf[2];
   int count = 100;
+
+  HAL_UART_Receive_IT(&huart5, xbee_int_buf, 2);
   uint8_t left_value;
   uint8_t right_value;
   HAL_StatusTypeDef status ;
@@ -250,23 +268,29 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-	  status = HAL_UART_Receive(&huart5, buf, 2, 700);
-	  left_value = buf[0];
-	  right_value = buf[1];
+//	  status = HAL_UART_Receive(&huart5, buf, 2, 700);
+	  static int last = 0;
+
 //	  printf("status: %d left: %d, right: %d\n\r", status, left_value, right_value);
-	  if(status == 0){
-		  if(left_value < 128){
-			  uint32_t left_pwm = (50000*(128-(uint32_t)left_value))/128+70000;
-			  uint32_t right_pwm = (50000*(128-(uint32_t)right_value))/128+70000;
-			  motor_left_reverse(left_pwm);
-			  motor_right_reverse(right_pwm);
-		  }else{
-			  uint32_t left_pwm = (50000*((uint32_t)left_value-128))/128+70000;
-			  uint32_t right_pwm = (50000*((uint32_t)right_value-128))/128+70000;
-			  motor_right_forward(left_pwm);   // 50% speed
-			  motor_left_forward(right_pwm);   // 50% speed
-		  }
-	  }else{
+	  if (xbee_int_ready){
+		  xbee_int_ready = 0;
+		  left_value = xbee_int_buf[0];
+		  right_value = xbee_int_buf[1];
+		  last = HAL_GetTick();
+			  if(left_value < 128){
+				  uint32_t left_pwm = (50000*(128-(uint32_t)left_value))/128+70000;
+				  uint32_t right_pwm = (50000*(128-(uint32_t)right_value))/128+70000;
+				  motor_left_reverse(left_pwm);
+				  motor_right_reverse(right_pwm);
+			  }else{
+				  uint32_t left_pwm = (50000*((uint32_t)left_value-128))/128+70000;
+				  uint32_t right_pwm = (50000*((uint32_t)right_value-128))/128+70000;
+				  motor_right_forward(left_pwm);   // 50% speed
+				  motor_left_forward(right_pwm);   // 50% speed
+			  }
+	  }
+
+	  if (HAL_GetTick() - last > 300){
 		  motor_left_stop();
 		  motor_right_stop();
 	  }
@@ -301,7 +325,7 @@ int main(void)
 //	  HAL_Delay(2000);
 //	  motor_right_stop();
 //	  motor_right_reverse(0);
-	  HAL_Delay(1000);
+//	  HAL_Delay(1000);
   }
   /* USER CODE END 3 */
 }
@@ -728,6 +752,16 @@ PUTCHAR_PROTOTYPE
   HAL_UART_Transmit(&hlpuart1, (uint8_t *)&ch, 1, 0xFFFF);
   return ch;
 }
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+    if (huart == &huart5) {
+    	printf("RX INT: %d %d\n\r", xbee_int_buf[0], xbee_int_buf[1]);
+        xbee_int_ready = 1;
+        HAL_UART_Receive_IT(&huart5, xbee_int_buf, 2);
+    }
+}
+
 /* USER CODE END 4 */
 
 /**
