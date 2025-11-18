@@ -100,13 +100,18 @@ uint8_t xbee_enter_command(void)
     uint8_t resp[8];
     HAL_StatusTypeDef st;
 
-    HAL_Delay(1000);   // guard time before
-    uint8_t plus[3] = {'+', '+', '+'};
-    HAL_UART_Transmit(&huart5, plus, 3, 100);
-    HAL_Delay(1000);   // guard time after
+//    HAL_Delay(1000);   // guard time before
+//    uint8_t plus[3] = {'+', '+', '+'};
+//    HAL_UART_Transmit(&huart5, plus, 3, 100);
+//    HAL_Delay(1000);   // guard time after
+    printf("sending +++\n");
+    HAL_Delay(1000);   // 1.2 sec
+    HAL_UART_Transmit(&huart5, (uint8_t*)"+++", 3, 100);
+    HAL_Delay(1000);
+    printf("sent +++\n");
 
     // XBee should respond with "OK\r"
-    st = HAL_UART_Receive(&huart5, resp, 3, 500);  // read 3 bytes
+    st = HAL_UART_Receive(&huart5, resp, 3, 1000);  // read 3 bytes
 
     printf("enter cmd resp: st=%d, bytes=%02X %02X %02X\r\n",
            st, resp[0], resp[1], resp[2]);
@@ -253,8 +258,10 @@ int main(void)
   HAL_Delay(1000);
   uint8_t buf[2];
   int count = 100;
+//  uint8_t rx;
 
   HAL_UART_Receive_IT(&huart5, xbee_int_buf, 2);
+//  HAL_UART_Receive_IT(&huart5, &rx, 2);
   uint8_t left_value;
   uint8_t right_value;
   HAL_StatusTypeDef status ;
@@ -267,33 +274,44 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-
+	  HAL_UART_Receive(&huart5, buf, 2, 200);
+//	  if(count > 1){
+//
+//		  count--;
+//		  printf("count %d \n", count);
+//
+//	  }
 //	  status = HAL_UART_Receive(&huart5, buf, 2, 700);
-	  static int last = 0;
+//	  static int last = 0;
 
-//	  printf("status: %d left: %d, right: %d\n\r", status, left_value, right_value);
 	  if (xbee_int_ready){
+
 		  xbee_int_ready = 0;
 		  left_value = xbee_int_buf[0];
 		  right_value = xbee_int_buf[1];
-		  last = HAL_GetTick();
-			  if(left_value < 128){
-				  uint32_t left_pwm = (50000*(128-(uint32_t)left_value))/128+70000;
-				  uint32_t right_pwm = (50000*(128-(uint32_t)right_value))/128+70000;
-				  motor_left_reverse(left_pwm);
-				  motor_right_reverse(right_pwm);
-			  }else{
-				  uint32_t left_pwm = (50000*((uint32_t)left_value-128))/128+70000;
-				  uint32_t right_pwm = (50000*((uint32_t)right_value-128))/128+70000;
-				  motor_right_forward(left_pwm);   // 50% speed
-				  motor_left_forward(right_pwm);   // 50% speed
-			  }
+//		  last = HAL_GetTick();
+		  if(left_value < 128){
+			  uint32_t left_pwm = (50000*(128-(uint32_t)left_value))/128+70000;
+			  motor_left_reverse(left_pwm);
+		  }else{
+			  uint32_t left_pwm = (50000*((uint32_t)left_value-128))/128+70000;
+			  motor_left_forward(left_pwm);   // 50% speed
+		  }
+		  if(right_value < 128){
+			  uint32_t right_pwm = (50000*(128-(uint32_t)right_value))/128+70000;
+			  motor_right_reverse(right_pwm);
+		  }else{
+			  uint32_t right_pwm = (50000*((uint32_t)right_value-128))/128+70000;
+			  motor_right_forward(right_pwm);   // 50% speed
+		  }
+//		  motor_right_forward(1200000);
+		  printf("status: %d left: %d, right: %d\n\r", status, left_value, right_value);
 	  }
 
-	  if (HAL_GetTick() - last > 300){
-		  motor_left_stop();
-		  motor_right_stop();
-	  }
+//	  if (HAL_GetTick() - last > 300){
+//		  motor_left_stop();
+//		  motor_right_stop();
+//	  }
 
 //	  printf("test\n\r");
 //	  if(count > 90){
@@ -325,7 +343,7 @@ int main(void)
 //	  HAL_Delay(2000);
 //	  motor_right_stop();
 //	  motor_right_reverse(0);
-//	  HAL_Delay(1000);
+	  HAL_Delay(100);
   }
   /* USER CODE END 3 */
 }
@@ -755,8 +773,11 @@ PUTCHAR_PROTOTYPE
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
+//	printf("debug");
     if (huart == &huart5) {
-    	printf("RX INT: %d %d\n\r", xbee_int_buf[0], xbee_int_buf[1]);
+
+//    	printf("RX INT: %d %d\n\r", xbee_int_buf[0], xbee_int_buf[1]);
+//    	printf("RX: %02X\r\n", xbee_int_buf);
         xbee_int_ready = 1;
         HAL_UART_Receive_IT(&huart5, xbee_int_buf, 2);
     }
