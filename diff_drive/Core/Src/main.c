@@ -274,7 +274,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  HAL_UART_Receive(&huart5, buf, 2, 200);
+//	  HAL_UART_Receive(&huart5, buf, 2, 200);
 //	  if(count > 1){
 //
 //		  count--;
