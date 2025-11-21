@@ -281,7 +281,7 @@ int main(void)
 //		  printf("count %d \n", count);
 //
 //	  }
-//	  status = HAL_UART_Receive(&huart5, buf, 2, 700);
+	  status = HAL_UART_Receive(&huart5, buf, 2, 700); //high latency, use for now since interrupt doesnt work. motor only runs with this on
 //	  static int last = 0;
 
 	  if (xbee_int_ready){

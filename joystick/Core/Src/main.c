@@ -225,6 +225,111 @@ uint8_t adc_to_8bit(uint32_t adc_val) {
     float normalized = (float)adc_val / 4095.0f;  // 0.0 to 1.0
     return (uint8_t)(normalized * 255.0f);        // Scale to 0-255
 }
+
+//FAULTY CODE
+//float filterX(uint32_t adc_val){
+//	if (adc_val > 2100){
+//		return 4095.0f;
+//	}
+//	else if (adc_val < 1940){
+//		return 0.0f;
+//	}
+//	else{
+//		return adc_val;
+//	}
+//}
+//float filterY(uint32_t adc_val){
+//	if (adc_val > 2035){
+//		return 4095.0f;
+//	}
+//	else if (adc_val < 1875){
+//		return 0.0f;
+//	}
+//	else{
+//		return adc_val;
+//	}
+//}
+
+#define X_CENTER_ADC   2020.0f   // approximate X center (adc_buffer[0])
+#define Y_CENTER_ADC   1955.0f   // approximate Y center (adc_buffer[1])
+#define R_DEADZONE_ADC 150.0f    // deadzone radius in ADC units, tune
+
+typedef enum {
+    DIR_STOP = 0,
+    DIR_FWD,
+    DIR_BACK,
+    DIR_LEFT,
+    DIR_RIGHT
+} dir_t;
+
+// Compute angle in degrees: 0° = +X (right), 90° = +Y (forward)
+static float joystick_angle_deg(uint32_t x_raw, uint32_t y_raw)
+{
+    float dx = (float)x_raw - X_CENTER_ADC;
+    float dy = (float)y_raw - Y_CENTER_ADC;
+
+    // NOTE: if pushing forward *decreases* Y ADC, flip sign:
+    // dy = Y_CENTER_ADC - (float)y_raw;
+
+    float ang = atan2f(dy, dx) * 180.0f / (float)M_PI;
+    if (ang < 0.0f) ang += 360.0f;
+    return ang;
+}
+
+// Decide which direction based on radius + angle
+static dir_t joystick_get_direction(uint32_t x_raw, uint32_t y_raw)
+{
+    float dx = (float)x_raw - X_CENTER_ADC;
+    float dy = (float)y_raw - Y_CENTER_ADC;  // flip as above if needed
+
+    float r2 = dx*dx + dy*dy;
+    if (r2 < R_DEADZONE_ADC * R_DEADZONE_ADC) {
+        return DIR_STOP;
+    }
+
+    float ang = joystick_angle_deg(x_raw, y_raw);
+
+    // Your ideal bins:
+    // forward - 90 (range 45-134)
+    // backward - 270 (range 235-314)
+    // right - 0 (range 315-44)
+    // left - 180 (range 135-234)
+
+    if (ang >= 45.0f  && ang <= 134.0f) return DIR_FWD;
+    if (ang >= 135.0f && ang <= 234.0f) return DIR_LEFT;
+    if (ang >= 235.0f && ang <= 314.0f) return DIR_BACK;
+    // wrap-around: 315–359 or 0–44
+    return DIR_RIGHT;
+}
+
+// Map direction to the 2 bytes we send to the robot
+static void encode_direction(dir_t dir, uint8_t *b0, uint8_t *b1)
+{
+    switch (dir) {
+    case DIR_FWD:
+        *b0 = 220;  // left wheel "forward"
+        *b1 = 220;  // right wheel "forward"
+        break;
+    case DIR_BACK:
+        *b0 = 40;
+        *b1 = 40;
+        break;
+    case DIR_LEFT:
+        *b0 = 40;   // left slow/back
+        *b1 = 220;  // right fast/forward
+        break;
+    case DIR_RIGHT:
+        *b0 = 220;
+        *b1 = 40;
+        break;
+    case DIR_STOP:
+    default:
+        *b0 = 128;  // neutral
+        *b1 = 128;
+        break;
+    }
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -274,22 +379,20 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  calculate_wheel_speeds(adc_buffer[0], adc_buffer[1], &left_motor_speed, &right_motor_speed);
+	  uint32_t x_raw = adc_buffer[0];  // check which is X / Y on your board
+	      uint32_t y_raw = adc_buffer[1];
 
-		printf("-------------------------\r\n");
+	      dir_t dir = joystick_get_direction(x_raw, y_raw);
 
-		printf("x values: %ld\n\r", adc_buffer[0]);
-		printf("y values: %ld\n\r", adc_buffer[1]);
-		printf("L: %6.2f, R: %6.2f\r\n", left_motor_speed, right_motor_speed);
+	      encode_direction(dir, &uart_buffer[0], &uart_buffer[1]);
 
-		uart_buffer[0] = adc_to_8bit(adc_buffer[0]);
-		uart_buffer[1] = adc_to_8bit(adc_buffer[1]);
-		printf("left uart: %d\n\r", uart_buffer[0]);
-		printf("right uart: %d\n\r", uart_buffer[1]);
+	      printf("-------------------------\r\n");
+	      printf("x_raw: %lu, y_raw: %lu\r\n", x_raw, y_raw);
+	      printf("dir: %d, out L: %d, out R: %d\r\n",
+	             (int)dir, uart_buffer[0], uart_buffer[1]);
 
-		HAL_UART_Transmit(&huart4, uart_buffer, 2, 100);
-		//HAL_MAX_DELAY
-		HAL_Delay(1000);
+	      HAL_UART_Transmit(&huart4, uart_buffer, 2, 100);
+	      HAL_Delay(1000);
   }
   /* USER CODE END 3 */
 }
