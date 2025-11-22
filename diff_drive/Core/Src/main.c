@@ -53,7 +53,6 @@ char xbee_buffer[100];
 uint8_t xbee_int_buf[2];
 volatile uint8_t xbee_int_ready = 0;
 
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -103,15 +102,12 @@ uint8_t xbee_enter_command(void)
 //    HAL_Delay(1000);   // guard time before
 //    uint8_t plus[3] = {'+', '+', '+'};
 //    HAL_UART_Transmit(&huart5, plus, 3, 100);
-//    HAL_Delay(1000);   // guard time after
-    printf("sending +++\n");
     HAL_Delay(1000);   // 1.2 sec
     HAL_UART_Transmit(&huart5, (uint8_t*)"+++", 3, 100);
     HAL_Delay(1000);
-    printf("sent +++\n");
 
     // XBee should respond with "OK\r"
-    st = HAL_UART_Receive(&huart5, resp, 3, 1000);  // read 3 bytes
+    st = HAL_UART_Receive(&huart5, resp, 3, 1000);
 
     printf("enter cmd resp: st=%d, bytes=%02X %02X %02X\r\n",
            st, resp[0], resp[1], resp[2]);
@@ -151,8 +147,6 @@ void xbee_router_setup() {
 	}
 }
 
-
-// Direction pins (example)
 #define DIR_L1_PORT GPIOA
 #define DIR_L1_PIN  GPIO_PIN_0
 #define DIR_L2_PORT GPIOA
@@ -163,7 +157,6 @@ void xbee_router_setup() {
 #define DIR_R2_PIN  GPIO_PIN_3
 
 void motors_gpio_init(void) {
-  // init DIR pins as outputs (HAL code omitted for brevity)
   HAL_GPIO_WritePin(DIR_L1_PORT, DIR_L1_PIN, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(DIR_L2_PORT, DIR_L2_PIN, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(DIR_R1_PORT, DIR_R1_PIN, GPIO_PIN_RESET);
@@ -256,15 +249,10 @@ int main(void)
   HAL_Delay(1000);
   xbee_router_setup();
   HAL_Delay(1000);
-  uint8_t buf[2];
-  int count = 100;
-//  uint8_t rx;
 
   HAL_UART_Receive_IT(&huart5, xbee_int_buf, 2);
-//  HAL_UART_Receive_IT(&huart5, &rx, 2);
   uint8_t left_value;
   uint8_t right_value;
-  HAL_StatusTypeDef status ;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -275,75 +263,33 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 //	  HAL_UART_Receive(&huart5, buf, 2, 200);
-//	  if(count > 1){
-//
-//		  count--;
-//		  printf("count %d \n", count);
-//
-//	  }
-	  status = HAL_UART_Receive(&huart5, buf, 2, 700); //high latency, use for now since interrupt doesnt work. motor only runs with this on
-//	  static int last = 0;
-
 	  if (xbee_int_ready){
-
 		  xbee_int_ready = 0;
 		  left_value = xbee_int_buf[0];
 		  right_value = xbee_int_buf[1];
-//		  last = HAL_GetTick();
 		  if(left_value < 128){
 			  uint32_t left_pwm = (50000*(128-(uint32_t)left_value))/128+70000;
 			  motor_left_reverse(left_pwm);
 		  }else{
 			  uint32_t left_pwm = (50000*((uint32_t)left_value-128))/128+70000;
-			  motor_left_forward(left_pwm);   // 50% speed
+			  motor_left_forward(left_pwm);
 		  }
 		  if(right_value < 128){
 			  uint32_t right_pwm = (50000*(128-(uint32_t)right_value))/128+70000;
 			  motor_right_reverse(right_pwm);
 		  }else{
 			  uint32_t right_pwm = (50000*((uint32_t)right_value-128))/128+70000;
-			  motor_right_forward(right_pwm);   // 50% speed
+			  motor_right_forward(right_pwm);
 		  }
-//		  motor_right_forward(1200000);
-		  printf("status: %d left: %d, right: %d\n\r", status, left_value, right_value);
+		  if(120 < left_value && left_value < 140){
+			  motor_left_stop();
+		  }
+		  if(120 < right_value && right_value < 140){
+			  motor_right_stop();
+		  }
+		  printf("left: %d, right: %d\n\r", left_value, right_value);
 	  }
-
-//	  if (HAL_GetTick() - last > 300){
-//		  motor_left_stop();
-//		  motor_right_stop();
-//	  }
-
-//	  printf("test\n\r");
-//	  if(count > 90){
-//		  motor_right_forward(120000);
-//		  motor_left_forward(120000);
-//	  }else if(count > 80){
-//		  motor_right_reverse(120000);
-//		  motor_left_reverse(120000);
-//	  }else if(count > 70){
-//		  motor_right_forward(120000);
-//		  motor_left_reverse(120000);
-//	  }else if(count > 60){
-//		  motor_left_forward(120000);
-//		  motor_right_reverse(120000);
-//	  }else{
-//		  motor_left_stop();
-//		  motor_right_stop();
-//	  }
-//	  count--;
-//	  if (left_value != 0 && right_value != 0) {
-//		  printf("status: %d left: %d, right: %d\n\r", status, left_value, right_value);
-
-//	  } else {
-
-//	  }
-//	  motor_right_forward(500);  // 50% speed
-//	  motor_left_forward(120000);   // 30% speed
-//	  motor_right_reverse(300);
-//	  HAL_Delay(2000);
-//	  motor_right_stop();
-//	  motor_right_reverse(0);
-	  HAL_Delay(100);
+	  HAL_Delay(50);
   }
   /* USER CODE END 3 */
 }
@@ -773,16 +719,17 @@ PUTCHAR_PROTOTYPE
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-//	printf("debug");
     if (huart == &huart5) {
-
-//    	printf("RX INT: %d %d\n\r", xbee_int_buf[0], xbee_int_buf[1]);
-//    	printf("RX: %02X\r\n", xbee_int_buf);
         xbee_int_ready = 1;
         HAL_UART_Receive_IT(&huart5, xbee_int_buf, 2);
     }
 }
-
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+{
+    if (huart == &huart5) {
+        HAL_UART_Receive_IT(&huart5, xbee_int_buf, 2);
+    }
+}
 /* USER CODE END 4 */
 
 /**
