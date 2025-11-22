@@ -178,7 +178,7 @@ void calculate_wheel_speeds(uint32_t x_adc, uint32_t y_adc, float *left, float *
     float y = normalize_adc(y_adc);  // Forward/backward
 
     // Apply deadzone to prevent drift
-    float deadzone = 0.1f;
+    float deadzone = 0.05f;
     if (fabs(x) < deadzone) x = 0.0f;
     if (fabs(y) < deadzone) y = 0.0f;
 
