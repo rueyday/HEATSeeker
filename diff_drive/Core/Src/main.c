@@ -45,6 +45,7 @@
 I2C_HandleTypeDef hi2c1;
 
 UART_HandleTypeDef hlpuart1;
+UART_HandleTypeDef huart4;
 UART_HandleTypeDef huart5;
 
 TIM_HandleTypeDef htim3;
@@ -61,6 +62,8 @@ uint8_t reg = 0x80;
 #define SAD_IRCAM_W 0b11010010
 #define SAD_IRCAM_R 0b11010011
 volatile uint8_t glass_xbee_ready = 0;
+uint8_t temp_send[16];
+uint8_t xbee_glass_int_buf[2];
 
 /* USER CODE END PV */
 
@@ -71,6 +74,7 @@ static void MX_TIM3_Init(void);
 static void MX_UART5_Init(void);
 static void MX_LPUART1_UART_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_UART4_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -84,12 +88,12 @@ void MX_NVIC_Init(void)
     HAL_NVIC_EnableIRQ(UART5_IRQn);
 }
 
-int xbee_readline(char *buf, int maxlen)
+int xbee_readline(char *buf, int maxlen, UART_HandleTypeDef *huartx)
 {
     int i = 0;
     uint8_t ch;
     while (i < maxlen - 1) {
-        if (HAL_UART_Receive(&huart5, &ch, 1, 500) != HAL_OK) {
+        if (HAL_UART_Receive(huartx, &ch, 1, 500) != HAL_OK) {
             break;  // timeout
         }
         buf[i++] = ch;
@@ -99,12 +103,12 @@ int xbee_readline(char *buf, int maxlen)
     return i;
 }
 
-void xbee_send(const char* cmd) {
-	HAL_UART_Transmit(&huart5, (uint8_t*)cmd, strlen(cmd), 100);
-	HAL_UART_Transmit(&huart5, (uint8_t*)"\r", 1, 100);
+void xbee_send(const char* cmd, UART_HandleTypeDef *huartx) {
+	HAL_UART_Transmit(huartx, (uint8_t*)cmd, strlen(cmd), 100);
+	HAL_UART_Transmit(huartx, (uint8_t*)"\r", 1, 100);
 }
 
-uint8_t xbee_enter_command(void)
+uint8_t xbee_enter_command(UART_HandleTypeDef *huartx)
 {
     uint8_t resp[8];
     HAL_StatusTypeDef st;
@@ -113,11 +117,11 @@ uint8_t xbee_enter_command(void)
 //    uint8_t plus[3] = {'+', '+', '+'};
 //    HAL_UART_Transmit(&huart5, plus, 3, 100);
     HAL_Delay(1000);   // 1.2 sec
-    HAL_UART_Transmit(&huart5, (uint8_t*)"+++", 3, 100);
+    HAL_UART_Transmit(huartx, (uint8_t*)"+++", 3, 100);
     HAL_Delay(1000);
 
     // XBee should respond with "OK\r"
-    st = HAL_UART_Receive(&huart5, resp, 3, 1000);
+    st = HAL_UART_Receive(huartx, resp, 3, 1000);
 
     printf("enter cmd resp: st=%d, bytes=%02X %02X %02X\r\n",
            st, resp[0], resp[1], resp[2]);
@@ -129,38 +133,52 @@ uint8_t xbee_enter_command(void)
         return 0;
 }
 
-void xbee_coord_setup() {
-	if(xbee_enter_command()) {
-		xbee_send("ATID 1111");
-		xbee_send("ATCH 10");
-		xbee_send("ATMY 1");
-		xbee_send("ATDL 2");
-		xbee_send("ATWR");
-		xbee_send("ATCN");
-	}
-	else {
-		printf("xbee coordinator setup failed! \r\n");
-	}
-}
+//void xbee_coord_setup() {
+//	if(xbee_enter_command(&huart5)) {
+//		xbee_send("ATID 1111", &huart5);
+//		xbee_send("ATCH 16", &huart5);
+//		xbee_send("ATMY 1", &huart5);
+//		xbee_send("ATDL 2", &huart5);
+//		xbee_send("ATWR", &huart5);
+//		xbee_send("ATCN", &huart5);
+//	}
+//	else {
+//		printf("xbee coordinator setup failed! \r\n");
+//	}
+//}
 
 void xbee_router_setup() {
-	if(xbee_enter_command()) {
-		xbee_send("ATID 1111");
-		xbee_send("ATCH 10");
-		xbee_send("ATMY 2");
-		xbee_send("ATDL 1");
-		xbee_send("ATWR");
-		xbee_send("ATCN");
+	if(xbee_enter_command(&huart5)) {
+		xbee_send("ATID 1111", &huart5);
+		xbee_send("ATCH 16", &huart5);
+		xbee_send("ATMY 2", &huart5);
+		xbee_send("ATDL 1", &huart5);
+		xbee_send("ATWR", &huart5);
+		xbee_send("ATCN", &huart5);
 	}
 	else {
 		printf("xbee router setup failed! \r\n");
 	}
 }
 
-#define DIR_L1_PORT GPIOA
-#define DIR_L1_PIN  GPIO_PIN_0
-#define DIR_L2_PORT GPIOA
-#define DIR_L2_PIN  GPIO_PIN_1
+void xbee_ir_setup() {
+	if(xbee_enter_command(&huart4)) {
+		xbee_send("ATID 2222", &huart4);
+		xbee_send("ATCH 17", &huart4);
+		xbee_send("ATMY 1", &huart4);
+		xbee_send("ATDL 2", &huart4);
+		xbee_send("ATWR", &huart4);
+		xbee_send("ATCN", &huart4);
+	}
+	else {
+		printf("xbee ir setup failed! \r\n");
+	}
+}
+
+#define DIR_L1_PORT GPIOE
+#define DIR_L1_PIN  GPIO_PIN_2
+#define DIR_L2_PORT GPIOE
+#define DIR_L2_PIN  GPIO_PIN_4
 #define DIR_R1_PORT GPIOA
 #define DIR_R1_PIN  GPIO_PIN_2
 #define DIR_R2_PORT GPIOA
@@ -248,6 +266,7 @@ int main(void)
   MX_UART5_Init();
   MX_LPUART1_UART_Init();
   MX_I2C1_Init();
+  MX_UART4_Init();
   /* USER CODE BEGIN 2 */
   motors_gpio_init();
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
@@ -255,8 +274,11 @@ int main(void)
   HAL_Delay(1000);
   xbee_router_setup();
   HAL_Delay(1000);
+  xbee_ir_setup();
+  HAL_Delay(1000);
 
   HAL_UART_Receive_IT(&huart5, xbee_int_buf, 2);
+//  HAL_UART_Receive_IT(&huart4, xbee_glass_int_buf, 2);
   uint8_t left_value;
   uint8_t right_value;
   /* USER CODE END 2 */
@@ -296,22 +318,35 @@ int main(void)
 		  printf("left: %d, right: %d\n\r", left_value, right_value);
 	  }
 
-	  if (glass_xbee_ready) {
+	  if (1) {
 		  HAL_I2C_Master_Transmit(&hi2c1, SAD_IRCAM_W, &reg, 1, 1000);
 		  HAL_I2C_Master_Receive(&hi2c1, SAD_IRCAM_R, buf, 128, 1000);
 
 		  // read and process from IR camera
 		  for (int i = 0; i < 8; i++) {
-			  int temp[8] = {};
+//			  int temp[8] = {};
 			  for (int j = 0; j < 8; j++) {
 				  uint16_t raw = (buf[i * 16 + j * 2 + 1] << 8) | buf[i * 16 + j * 2];
 				  if (raw > 2047) {
 					  raw -= 4096;
 				  }
-				  temp[j] = (int)(raw * 0.25 / 10);
+				  if (j == 0 || j == 4) {
+					  temp_send[(8 * i + j) / 4] = (int)(raw * 0.25 / 10) & 0b11;
+				  }
+				  else {
+					  temp_send[(8 * i + j) / 4] |= (int)(raw * 0.25 / 10) & 0b11 << (j % 4);
+				  }
 			  } // inner for loop
-			  printf("%.d %.d %.d %.d %.d %.d %.d %.d\n\r", temp[0], temp[1], temp[2], temp[3], temp[4], temp[5], temp[6], temp[7]);
+
+
 		  } // outer for loop
+//		  xbee_send(temp_send, &huart4);
+		  for (int i = 0; i < 8; i++) {
+			  printf("%.d %.d %.d %.d %.d %.d %.d %.d\n\r", (int)(temp_send[2*i+1] & 0b11000000), (int)(temp_send[2*i+1] & 0b00110000), (int)(temp_send[2*i+1] & 0b00001100), (int)(temp_send[2*i+1] & 0b00000011), (int)(temp_send[2*i] & 0b11000000), (int)(temp_send[2*i] & 0b00110000), (int)(temp_send[2*i] & 0b00001100), (int)(temp_send[2*i] & 0b00000011));
+		  }
+		  printf("==========================================");
+
+//		  HAL_UART_Transmit(&huart4, temp_send, 16, 100);
 	  }
 
 	  HAL_Delay(50);
@@ -460,6 +495,54 @@ static void MX_LPUART1_UART_Init(void)
 }
 
 /**
+  * @brief UART4 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_UART4_Init(void)
+{
+
+  /* USER CODE BEGIN UART4_Init 0 */
+
+  /* USER CODE END UART4_Init 0 */
+
+  /* USER CODE BEGIN UART4_Init 1 */
+
+  /* USER CODE END UART4_Init 1 */
+  huart4.Instance = UART4;
+  huart4.Init.BaudRate = 9600;
+  huart4.Init.WordLength = UART_WORDLENGTH_8B;
+  huart4.Init.StopBits = UART_STOPBITS_1;
+  huart4.Init.Parity = UART_PARITY_NONE;
+  huart4.Init.Mode = UART_MODE_TX_RX;
+  huart4.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart4.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart4.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart4.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+  huart4.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetTxFifoThreshold(&huart4, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetRxFifoThreshold(&huart4, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_DisableFifoMode(&huart4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN UART4_Init 2 */
+
+  /* USER CODE END UART4_Init 2 */
+
+}
+
+/**
   * @brief UART5 Initialization Function
   * @param None
   * @retval None
@@ -584,13 +667,23 @@ static void MX_GPIO_Init(void)
   HAL_PWREx_EnableVddIO2();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_2|GPIO_PIN_4, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2|GPIO_PIN_3, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PE2 PE3 */
-  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3;
+  /*Configure GPIO pins : PE2 PE4 */
+  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_4;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PE3 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -621,8 +714,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PA0 PA1 PA2 PA3 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3;
+  /*Configure GPIO pins : PA2 PA3 */
+  GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
