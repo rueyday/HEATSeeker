@@ -335,7 +335,7 @@ int main(void)
 					  temp_send[(8 * i + j) / 4] = (int)(raw * 0.25 / 10) & 0b11;
 				  }
 				  else {
-					  temp_send[(8 * i + j) / 4] |= (((int)(raw * 0.25 / 10) & 0b11) << ((j % 4) * 2));
+					  temp_send[(8 * i + j) / 4] = (temp_send[(8 * i + j) / 4] << 2) | ((int)(raw * 0.25 / 10) & 0b11);
 				  }
 			  } // inner for loop
 			  printf("%.d %.d %.d %.d %.d %.d %.d %.d\n\r", temp[0], temp[1], temp[2], temp[3], temp[4], temp[5], temp[6], temp[7]);
@@ -344,7 +344,7 @@ int main(void)
 		  printf("\r\n");
 //		  xbee_send(temp_send, &huart4);
 		  for (int i = 0; i < 8; i++) {
-			  printf("%.d %.d %.d %.d %.d %.d %.d %.d\n\r", (int)(temp_send[2*i+1] & 0b11000000) >> 6, (int)(temp_send[2*i+1] & 0b00110000) >> 4 , (int)(temp_send[2*i+1] & 0b00001100) >> 2, (int)(temp_send[2*i+1] & 0b00000011), (int)(temp_send[2*i] & 0b11000000) >> 6, (int)(temp_send[2*i] & 0b00110000) >> 4, (int)(temp_send[2*i] & 0b00001100) >> 2, (int)(temp_send[2*i] & 0b00000011));
+			  printf("%.d %.d %.d %.d %.d %.d %.d %.d\n\r", (int)(temp_send[2*i] & 0b11000000) >> 6, (int)(temp_send[2*i] & 0b00110000) >> 4, (int)(temp_send[2*i] & 0b00001100) >> 2, (int)(temp_send[2*i] & 0b00000011), (int)(temp_send[2*i+1] & 0b11000000) >> 6, (int)(temp_send[2*i+1] & 0b00110000) >> 4 , (int)(temp_send[2*i+1] & 0b00001100) >> 2, (int)(temp_send[2*i+1] & 0b00000011));
 		  }
 		  printf("==========================================\n\r");
 
