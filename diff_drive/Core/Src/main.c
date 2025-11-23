@@ -150,7 +150,7 @@ uint8_t xbee_enter_command(UART_HandleTypeDef *huartx)
 void xbee_router_setup() {
 	if(xbee_enter_command(&huart5)) {
 		xbee_send("ATID 1111", &huart5);
-		xbee_send("ATCH 16", &huart5);
+		xbee_send("ATCH 10", &huart5);
 		xbee_send("ATMY 2", &huart5);
 		xbee_send("ATDL 1", &huart5);
 		xbee_send("ATWR", &huart5);
@@ -281,6 +281,7 @@ int main(void)
 //  HAL_UART_Receive_IT(&huart4, xbee_glass_int_buf, 2);
   uint8_t left_value;
   uint8_t right_value;
+  uint8_t IR_count;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -291,6 +292,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 //	  HAL_UART_Receive(&huart5, buf, 2, 200);
+//	  motor_left_reverse(120000);
 	  if (xbee_int_ready){
 		  xbee_int_ready = 0;
 		  left_value = xbee_int_buf[0];
@@ -318,40 +320,49 @@ int main(void)
 		  printf("left: %d, right: %d\n\r", left_value, right_value);
 	  }
 
-	  if (1) {
+	  if (IR_count > 10) {
 		  HAL_I2C_Master_Transmit(&hi2c1, SAD_IRCAM_W, &reg, 1, 1000);
 		  HAL_I2C_Master_Receive(&hi2c1, SAD_IRCAM_R, buf, 128, 1000);
 
-		  // read and process from IR camera
-		  for (int i = 0; i < 8; i++) {
-			  int temp[8] = {};
-			  for (int j = 0; j < 8; j++) {
-				  uint16_t raw = (buf[i * 16 + j * 2 + 1] << 8) | buf[i * 16 + j * 2];
-				  if (raw > 2047) {
-					  raw -= 4096;
-				  }
-				  temp[j] = (int)(raw * 0.25 / 10);
-				  if (j == 0 || j == 4) {
-					  temp_send[(8 * i + j) / 4] = (int)(raw * 0.25 / 10) & 0b11;
-				  }
-				  else {
-					  temp_send[(8 * i + j) / 4] = (temp_send[(8 * i + j) / 4] << 2) | ((int)(raw * 0.25 / 10) & 0b11);
-				  }
-			  } // inner for loop
-			  printf("%.d %.d %.d %.d %.d %.d %.d %.d\n\r", temp[0], temp[1], temp[2], temp[3], temp[4], temp[5], temp[6], temp[7]);
+		  uint8_t temp_send[32];
+		  int idx = 0;
 
-		  } // outer for loop
-		  printf("\r\n");
-//		  xbee_send(temp_send, &huart4);
+		  float T_MIN = 18.0f;
+		  float T_MAX = 32.0f;
+
 		  for (int i = 0; i < 8; i++) {
-			  printf("%.d %.d %.d %.d %.d %.d %.d %.d\n\r", (int)(temp_send[2*i] & 0b11000000) >> 6, (int)(temp_send[2*i] & 0b00110000) >> 4, (int)(temp_send[2*i] & 0b00001100) >> 2, (int)(temp_send[2*i] & 0b00000011), (int)(temp_send[2*i+1] & 0b11000000) >> 6, (int)(temp_send[2*i+1] & 0b00110000) >> 4 , (int)(temp_send[2*i+1] & 0b00001100) >> 2, (int)(temp_send[2*i+1] & 0b00000011));
+			  for (int j = 0; j < 8; j += 2) {
+
+				  uint16_t raw1 = (buf[i*16 + j*2 + 1] << 8) | buf[i*16 + j*2];
+				  if (raw1 > 2047) raw1 -= 4096;
+				  float t1 = raw1 * 0.25f;
+
+				  if (t1 < T_MIN) t1 = T_MIN;
+				  int p1 = (int)(((t1-T_MIN) / (T_MAX-T_MIN)) * 15.0f);
+
+				  uint16_t raw2 = (buf[i*16 + (j+1)*2 + 1] << 8) | buf[i*16 + (j+1)*2];
+				  if (raw2 > 2047) raw2 -= 4096;
+				  float t2 = raw2 * 0.25f;
+
+				  if (t2 < T_MIN) t2 = T_MIN;
+				  int p2 = (int)(((t2-T_MIN) / (T_MAX-T_MIN)) * 15.0f);
+
+				  temp_send[idx++] = (uint8_t)((p1 << 4) | (p2 & 0x0F));
+			  }
 		  }
-		  printf("==========================================\n\r");
 
-		  HAL_UART_Transmit(&huart4, temp_send, 16, 100);
+
+		  for (int i = 0; i < 32; i++) {
+		      uint8_t byte = temp_send[i];
+		      printf("%d %d  ", (byte >> 4) & 0x0F, byte & 0x0F);
+		      if (i % 4 == 3) printf("\n");
+		  }
+		  printf("-----------\n");
+
+		  HAL_UART_Transmit(&huart4, temp_send, 32, 100);
+		  IR_count = 0;
 	  }
-
-	  HAL_Delay(50);
+	  IR_count++;
   }
   /* USER CODE END 3 */
 }
