@@ -324,29 +324,31 @@ int main(void)
 
 		  // read and process from IR camera
 		  for (int i = 0; i < 8; i++) {
-//			  int temp[8] = {};
+			  int temp[8] = {};
 			  for (int j = 0; j < 8; j++) {
 				  uint16_t raw = (buf[i * 16 + j * 2 + 1] << 8) | buf[i * 16 + j * 2];
 				  if (raw > 2047) {
 					  raw -= 4096;
 				  }
+				  temp[j] = (int)(raw * 0.25 / 10);
 				  if (j == 0 || j == 4) {
 					  temp_send[(8 * i + j) / 4] = (int)(raw * 0.25 / 10) & 0b11;
 				  }
 				  else {
-					  temp_send[(8 * i + j) / 4] |= (int)(raw * 0.25 / 10) & 0b11 << (j % 4);
+					  temp_send[(8 * i + j) / 4] |= (((int)(raw * 0.25 / 10) & 0b11) << ((j % 4) * 2));
 				  }
 			  } // inner for loop
-
+			  printf("%.d %.d %.d %.d %.d %.d %.d %.d\n\r", temp[0], temp[1], temp[2], temp[3], temp[4], temp[5], temp[6], temp[7]);
 
 		  } // outer for loop
+		  printf("\r\n");
 //		  xbee_send(temp_send, &huart4);
 		  for (int i = 0; i < 8; i++) {
-			  printf("%.d %.d %.d %.d %.d %.d %.d %.d\n\r", (int)(temp_send[2*i+1] & 0b11000000), (int)(temp_send[2*i+1] & 0b00110000), (int)(temp_send[2*i+1] & 0b00001100), (int)(temp_send[2*i+1] & 0b00000011), (int)(temp_send[2*i] & 0b11000000), (int)(temp_send[2*i] & 0b00110000), (int)(temp_send[2*i] & 0b00001100), (int)(temp_send[2*i] & 0b00000011));
+			  printf("%.d %.d %.d %.d %.d %.d %.d %.d\n\r", (int)(temp_send[2*i+1] & 0b11000000) >> 6, (int)(temp_send[2*i+1] & 0b00110000) >> 4 , (int)(temp_send[2*i+1] & 0b00001100) >> 2, (int)(temp_send[2*i+1] & 0b00000011), (int)(temp_send[2*i] & 0b11000000) >> 6, (int)(temp_send[2*i] & 0b00110000) >> 4, (int)(temp_send[2*i] & 0b00001100) >> 2, (int)(temp_send[2*i] & 0b00000011));
 		  }
-		  printf("==========================================");
+		  printf("==========================================\n\r");
 
-//		  HAL_UART_Transmit(&huart4, temp_send, 16, 100);
+		  HAL_UART_Transmit(&huart4, temp_send, 16, 100);
 	  }
 
 	  HAL_Delay(50);
