@@ -178,7 +178,7 @@ void calculate_wheel_speeds(uint32_t x_adc, uint32_t y_adc, float *left, float *
     float y = normalize_adc(y_adc);  // Forward/backward
 
     // Apply deadzone to prevent drift
-    float deadzone = 0.05f;
+    float deadzone = 0.1f;
     if (fabs(x) < deadzone) x = 0.0f;
     if (fabs(y) < deadzone) y = 0.0f;
 
@@ -392,7 +392,7 @@ int main(void)
 	             (int)dir, uart_buffer[0], uart_buffer[1]);
 
 	      HAL_UART_Transmit(&huart4, uart_buffer, 2, 100);
-	      HAL_Delay(1000);
+	      HAL_Delay(100);
   }
   /* USER CODE END 3 */
 }

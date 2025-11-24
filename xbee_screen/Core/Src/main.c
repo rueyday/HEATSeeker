@@ -54,10 +54,11 @@ TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
-uint8_t uart_buffer[2];
-uint8_t xbee_buffer[10];
+uint8_t uart_buffer[32];
+uint8_t xbee_buffer[32];
 uint8_t xbee_int_buf[2];
 volatile uint8_t xbee_int_ready = 0;
+uint8_t r = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -122,23 +123,54 @@ uint8_t xbee_enter_command(void)
         return 0;
 }
 
-void circle_size() {
+void OLED_Circle(int x0, int y0, int r, OLED_COLOR color)
+{
+    int x = r;
+    int y = 0;
+    int err = 0;
 
+    while (x >= y)
+    {
+        // Draw horizontal spans instead of single pixels
+        for (int i = x0 - x; i <= x0 + x; i++) {
+            OLED_DrawPixel(i, y0 + y, color);
+            OLED_DrawPixel(i, y0 - y, color);
+        }
+        for (int i = x0 - y; i <= x0 + y; i++) {
+            OLED_DrawPixel(i, y0 + x, color);
+            OLED_DrawPixel(i, y0 - x, color);
+        }
+
+        y++;
+
+        if (err <= 0)
+        {
+            err += 2*y + 1;
+        }
+        if (err > 0)
+        {
+            x--;
+            err -= 2*x + 1;
+        }
+    }
 }
 
-//void xbee_coord_setup() {
-//	if(xbee_enter_command()) {
-//		xbee_send("ATID 1111");
-//		xbee_send("ATCH 10");
-//		xbee_send("ATMY 1");
-//		xbee_send("ATDL 2");
-//		xbee_send("ATWR");
-//		xbee_send("ATCN");
-//	}
-//	else {
-//		printf("xbee coordinator setup failed! \r\n");
-//	}
-//}
+void OLED_Square(uint8_t x, uint8_t y, uint8_t size, OLED_COLOR color)
+{
+    // Prevent drawing outside the display
+    if (x >= OLED_WIDTH || y >= OLED_HEIGHT) return;
+
+    for (uint8_t i = 0; i < size; i++) {
+        for (uint8_t j = 0; j < size; j++) {
+            uint8_t px = x + j;
+            uint8_t py = y + i;
+
+            if (px < OLED_WIDTH && py < OLED_HEIGHT) {
+                OLED_DrawPixel(px, py, color);
+            }
+        }
+    }
+}
 
 void xbee_router_setup() {
 	if(xbee_enter_command()) {
@@ -157,9 +189,11 @@ void xbee_router_setup() {
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     if (huart == &huart5) {
-        printf("Received 16 bytes!\n");
         xbee_int_ready = 1;
-    	HAL_UART_Receive_IT(&huart5, xbee_int_buf, 2);
+    }
+    // Restart reception IMMEDIATELY
+    if (HAL_UART_Receive_IT(&huart5, uart_buffer, 32) != HAL_OK) {
+        printf("Failed to restart UART reception!\n");
     }
 
 }
@@ -167,7 +201,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
     if (huart == &huart5) {
-        HAL_UART_Receive_IT(&huart5, xbee_int_buf, 2);
+    	HAL_UART_Receive_IT(&huart5, uart_buffer, 32);
     }
 }
 /* USER CODE END 0 */
@@ -225,7 +259,10 @@ int main(void)
 
   // Write data to local screenbuffer
   OLED_SetCursor(0, 0);
-  OLED_WriteString(">:C", Font_11x18, White);
+  OLED_WriteString("Initialization", Font_7x10, White);
+  OLED_SetCursor(0, 10);
+  OLED_WriteString("Done >:)", Font_7x10, White);
+
 //  OLED_UpdateScreen(&hi2c1);
 //  OLED_SetCursor(0, 36);
 //  OLED_WriteString("Recheck", Font_11x18, White);
@@ -241,7 +278,7 @@ int main(void)
   HAL_Delay(100);
   OLED_UpdateScreen(&hi2c1);
 
-  HAL_UART_Receive_IT(&huart5, uart_buffer, 2);
+  HAL_UART_Receive_IT(&huart5, uart_buffer, 32);
   HAL_Delay(100);
   /* USER CODE END 2 */
 
@@ -259,23 +296,64 @@ int main(void)
 //		snprintf(xbee_buffer, sizeof(xbee_buffer), "IR Sensor %d: %d", i, uart_buffer[i]);
 //		OLED_WriteString(xbee_buffer, Font_7x10, White);
 //	}
+	  OLED_Fill(Black);
+
 	 if(xbee_int_ready){
 		 xbee_int_ready = 0;
-	        // Print your data
-//	        for (int i = 0; i < 8; i++) {
-//	            printf("%d %d %d %d %d %d %d %d\n\r",
-//	                   (uart_buffer[2*i+0] & 0x03), (uart_buffer[2*i+0]>>2 & 0x03),
-//	                   (uart_buffer[2*i+0]>>4 & 0x03), (uart_buffer[2*i+0]>>6 & 0x03),
-//	                   (uart_buffer[2*i+1] & 0x03), (uart_buffer[2*i+1]>>2 & 0x03),
-//	                   (uart_buffer[2*i+1]>>4 & 0x03), (uart_buffer[2*i+1]>>6 & 0x03));
-//	        }
-	        printf("==========================================\n\r");
+//	         Print your data
+		for (int i = 0; i < 32; i++) {
+			uint8_t byte = uart_buffer[i];
+			int val1 = (byte >> 4) & 0x0F;  // Upper 4 bits
+			int val2 = byte & 0x0F;         // Lower 4 bits
+
+			printf("%d %d  ", (byte >> 4) & 0x0F, byte & 0x0F);
+			if (i % 4 == 3) printf("\n\r");
+
+			// Convert to 8x8 grid positions
+			int grid_index = i * 2;         // 0-63 (64 total values)
+			int row = grid_index / 8;       // 0-7 (8 rows)
+			int col = grid_index % 8;       // 0-7 (8 columns)
+
+			// First value
+			int radius1 = val1 / 4 + 1;     // Scale 0-15 to radius 1-8
+			if(radius1 < 3){
+				radius1 = 0;
+			}
+			OLED_Square(col * 8 + 8, row * 8 + 4, radius1, White);
+
+			// Second value (next column)
+			int grid_index2 = grid_index + 1;
+			int row2 = grid_index2 / 8;
+			int col2 = grid_index2 % 8;
+			int radius2 = val2 / 4 + 1;
+			if(radius2 < 3){
+				radius2 = 0;
+			}
+			OLED_Square(col2 * 8 + 8, row2 * 8 + 4, radius2, White);
+
+
+		}
+		OLED_UpdateScreen(&hi2c1);
+		printf("-----------\n\r");
+
+		//		  OLED_SetCursor(0, 0);
+
 	 }
+
+//	 OLED_Circle(128/2, 64/2, r, White);
 //
-//	OLED_UpdateScreen(&hi2c1);
+//	 if(r == 32) {
+//		 OLED_Fill(Black);
+//		 r = 0;
+//		 OLED_SetCursor(50, 20);
+//		 OLED_WriteString("POP!", Font_11x18, White);
+//	 }
+//	 r++;
+
+
 	//HAL_MAX_DELAY
 
-    HAL_Delay(1000);  // Check for new data every second
+    HAL_Delay(10);  // Check for new data every second
   }
   /* USER CODE END 3 */
 }

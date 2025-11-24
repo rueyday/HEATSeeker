@@ -62,7 +62,7 @@ uint8_t reg = 0x80;
 #define SAD_IRCAM_W 0b11010010
 #define SAD_IRCAM_R 0b11010011
 volatile uint8_t glass_xbee_ready = 0;
-uint8_t temp_send[16];
+uint8_t temp_send[32];
 uint8_t xbee_glass_int_buf[2];
 
 /* USER CODE END PV */
@@ -352,17 +352,25 @@ int main(void)
 		  }
 
 
-		  for (int i = 0; i < 32; i++) {
+		  for (uint8_t i = 0; i < 32; i++) {
 		      uint8_t byte = temp_send[i];
 		      printf("%d %d  ", (byte >> 4) & 0x0F, byte & 0x0F);
-		      if (i % 4 == 3) printf("\n");
+		      if (i % 4 == 3) printf("\n\r");
 		  }
-		  printf("-----------\n");
+		  printf("-----------\n\r");
 
-		  HAL_UART_Transmit(&huart4, temp_send, 32, 100);
+//		  HAL_UART_Transmit(&huart4, temp_send, 32, 100);
+		  // In transmitter, after sending:
+		  if (HAL_UART_Transmit(&huart4, temp_send, 32, 100) == HAL_OK) {
+		      printf("Sent 32 bytes via UART4\n");
+//		      HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);  // Blink LED on transmit
+		  } else {
+		      printf("UART4 transmit failed\n");
+		  }
 		  IR_count = 0;
 	  }
 	  IR_count++;
+	  HAL_Delay(30);
   }
   /* USER CODE END 3 */
 }
