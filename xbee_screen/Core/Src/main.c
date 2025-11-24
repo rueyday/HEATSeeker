@@ -24,6 +24,8 @@
 #include "stdio.h"
 #include "math.h"
 #include "string.h"
+#include "fonts.h"
+#include "oled_driver.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -49,10 +51,13 @@ UART_HandleTypeDef huart4;
 UART_HandleTypeDef huart5;
 
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
 uint8_t uart_buffer[2];
-char xbee_buffer[100];
+uint8_t xbee_buffer[10];
+uint8_t xbee_int_buf[2];
+volatile uint8_t xbee_int_ready = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -63,12 +68,19 @@ static void MX_TIM2_Init(void);
 static void MX_UART4_Init(void);
 static void MX_UART5_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+void MX_NVIC_Init(void)
+{
+    HAL_NVIC_SetPriority(UART5_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(UART5_IRQn);
+}
 
 int xbee_readline(char *buf, int maxlen)
 {
@@ -94,18 +106,15 @@ uint8_t xbee_enter_command(void)
 {
     uint8_t resp[8];
     HAL_StatusTypeDef st;
-
+//    HAL_UART_AbortReceive(&huart5);
     HAL_Delay(1000);   // guard time before
-    uint8_t plus[3] = {'+', '+', '+'};
-    HAL_UART_Transmit(&huart5, plus, 3, 100);
+    HAL_UART_Transmit(&huart5, (uint8_t*)"+++", 3, 100);
     HAL_Delay(1000);   // guard time after
-
     // XBee should respond with "OK\r"
-    st = HAL_UART_Receive(&huart5, resp, 3, 500);  // read 3 bytes
+    st = HAL_UART_Receive(&huart5, resp, 3, 1000);  // read 3 bytes
 
     printf("enter cmd resp: st=%d, bytes=%02X %02X %02X\r\n",
            st, resp[0], resp[1], resp[2]);
-
     // check for "OK\r"
     if (st == HAL_OK && resp[0] == 'O' && resp[1] == 'K')
         return 1;
@@ -113,24 +122,28 @@ uint8_t xbee_enter_command(void)
         return 0;
 }
 
-void xbee_coord_setup() {
-	if(xbee_enter_command()) {
-		xbee_send("ATID 1111");
-		xbee_send("ATCH 10");
-		xbee_send("ATMY 1");
-		xbee_send("ATDL 2");
-		xbee_send("ATWR");
-		xbee_send("ATCN");
-	}
-	else {
-		printf("xbee coordinator setup failed! \r\n");
-	}
+void circle_size() {
+
 }
+
+//void xbee_coord_setup() {
+//	if(xbee_enter_command()) {
+//		xbee_send("ATID 1111");
+//		xbee_send("ATCH 10");
+//		xbee_send("ATMY 1");
+//		xbee_send("ATDL 2");
+//		xbee_send("ATWR");
+//		xbee_send("ATCN");
+//	}
+//	else {
+//		printf("xbee coordinator setup failed! \r\n");
+//	}
+//}
 
 void xbee_router_setup() {
 	if(xbee_enter_command()) {
-		xbee_send("ATID 1111");
-		xbee_send("ATCH 10");
+		xbee_send("ATID 2222");
+		xbee_send("ATCH 17");
 		xbee_send("ATMY 2");
 		xbee_send("ATDL 1");
 		xbee_send("ATWR");
@@ -141,6 +154,22 @@ void xbee_router_setup() {
 	}
 }
 
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+    if (huart == &huart5) {
+        printf("Received 16 bytes!\n");
+        xbee_int_ready = 1;
+    	HAL_UART_Receive_IT(&huart5, xbee_int_buf, 2);
+    }
+
+}
+
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+{
+    if (huart == &huart5) {
+        HAL_UART_Receive_IT(&huart5, xbee_int_buf, 2);
+    }
+}
 /* USER CODE END 0 */
 
 /**
@@ -167,7 +196,7 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+  MX_NVIC_Init();
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -177,9 +206,43 @@ int main(void)
   MX_UART4_Init();
   MX_UART5_Init();
   MX_I2C1_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
+  HAL_Delay(1000);
   xbee_router_setup();
   HAL_Delay(1000);
+
+  // Init lcd using one of the stm32HAL i2c typedefs
+  if (OLED_Init(&hi2c1) != 0) {
+    Error_Handler();
+  }
+  HAL_Delay(100);
+
+  OLED_Fill(Black);
+  OLED_UpdateScreen(&hi2c1);
+
+  HAL_Delay(1000);
+
+  // Write data to local screenbuffer
+  OLED_SetCursor(0, 0);
+  OLED_WriteString(">:C", Font_11x18, White);
+//  OLED_UpdateScreen(&hi2c1);
+//  OLED_SetCursor(0, 36);
+//  OLED_WriteString("Recheck", Font_11x18, White);
+
+//  // Draw rectangle on screen
+//  for (uint8_t i=0; i<28; i++) {
+//      for (uint8_t j=0; j<64; j++) {
+//          OLED_DrawPixel(100+i, 0+j, White);
+//      }
+//  }
+
+  // Copy all data from local screenbuffer to the screen
+  HAL_Delay(100);
+  OLED_UpdateScreen(&hi2c1);
+
+  HAL_UART_Receive_IT(&huart5, uart_buffer, 2);
+  HAL_Delay(100);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -189,10 +252,30 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	HAL_UART_Receive(&huart5, uart_buffer, 2, 100);
-	printf("left: %d, right: %d\r\n", uart_buffer[0], uart_buffer[1]);
+//	printf("left: %d, right: %d\r\n", uart_buffer[0], uart_buffer[1]);
+//	for(uint8_t i = 0; i < 16; i++){
+//		OLED_SetCursor(0, 15 * i);
+//		fprintf("IR Sensor %d: %d/r/n", i, uart_buffer[i]);
+//		snprintf(xbee_buffer, sizeof(xbee_buffer), "IR Sensor %d: %d", i, uart_buffer[i]);
+//		OLED_WriteString(xbee_buffer, Font_7x10, White);
+//	}
+	 if(xbee_int_ready){
+		 xbee_int_ready = 0;
+	        // Print your data
+//	        for (int i = 0; i < 8; i++) {
+//	            printf("%d %d %d %d %d %d %d %d\n\r",
+//	                   (uart_buffer[2*i+0] & 0x03), (uart_buffer[2*i+0]>>2 & 0x03),
+//	                   (uart_buffer[2*i+0]>>4 & 0x03), (uart_buffer[2*i+0]>>6 & 0x03),
+//	                   (uart_buffer[2*i+1] & 0x03), (uart_buffer[2*i+1]>>2 & 0x03),
+//	                   (uart_buffer[2*i+1]>>4 & 0x03), (uart_buffer[2*i+1]>>6 & 0x03));
+//	        }
+	        printf("==========================================\n\r");
+	 }
+//
+//	OLED_UpdateScreen(&hi2c1);
 	//HAL_MAX_DELAY
-	HAL_Delay(1000);
+
+    HAL_Delay(1000);  // Check for new data every second
   }
   /* USER CODE END 3 */
 }
@@ -219,14 +302,8 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = 0;
-  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
-  RCC_OscInitStruct.PLL.PLLM = 1;
-  RCC_OscInitStruct.PLL.PLLN = 16;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
-  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
+  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_10;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -236,7 +313,7 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
@@ -484,6 +561,54 @@ static void MX_TIM2_Init(void)
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
+
+}
+
+/**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 0;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 65535;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
 
 }
 
