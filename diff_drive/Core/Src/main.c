@@ -70,6 +70,22 @@ uint8_t xbee_glass_int_buf[2];
 uint8_t brightest_history[HISTORY_LEN];
 uint8_t history_pos = 0; // where to write next
 uint8_t history_count = 0; // how many valid entries (<= 50)
+
+//for PI controller
+float error_integral = 0.0f;
+const float Kp = 6000.0f;//tune!
+const float Ki = 300.0f;//also tune
+const float dt = 0.03f;//30ms
+
+//modes
+typedef enum {
+    MODE_JOYSTICK = 0,
+    MODE_IR_ONLY  = 1,
+    MODE_MIXED    = 2
+} control_mode_t;
+
+volatile control_mode_t control_mode = MODE_IR_ONLY;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -269,7 +285,7 @@ uint8_t getStable(){
 	for (int i = 0; i < history_count; i++){
 		int idx = brightest_history[i];
 		if (i < 64){
-			count[i]++;
+			count[idx]++;
 		}
 	}
 	//find max and index of the most freq + brightest count
@@ -341,39 +357,44 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  motor_right_forward(120000);
+	  motor_left_forward(120000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
 //	  HAL_UART_Receive(&huart5, buf, 2, 200);
 //	  motor_left_reverse(120000);
-	  if (xbee_int_ready){
+	  if (1){
 		  xbee_int_ready = 0;
 		  left_value = xbee_int_buf[0];
 		  right_value = xbee_int_buf[1];
-		  if(left_value < 128){
-			  uint32_t left_pwm = (50000*(128-(uint32_t)left_value))/128+70000;
-			  motor_left_reverse(left_pwm);
-		  }else{
-			  uint32_t left_pwm = (50000*((uint32_t)left_value-128))/128+70000;
-			  motor_left_forward(left_pwm);
-		  }
-		  if(right_value < 128){
-			  uint32_t right_pwm = (50000*(128-(uint32_t)right_value))/128+70000;
-			  motor_right_reverse(right_pwm);
-		  }else{
-			  uint32_t right_pwm = (50000*((uint32_t)right_value-128))/128+70000;
-			  motor_right_forward(right_pwm);
-		  }
-		  if(120 < left_value && left_value < 140){
-			  motor_left_stop();
-		  }
-		  if(120 < right_value && right_value < 140){
-			  motor_right_stop();
-		  }
+
+		  if(control_mode == MODE_JOYSTICK || control_mode == MODE_MIXED){
+			  if(left_value < 128){
+				  uint32_t left_pwm = (50000*(128-(uint32_t)left_value))/128+70000;
+				  motor_left_reverse(left_pwm);
+			  }else{
+				  uint32_t left_pwm = (50000*((uint32_t)left_value-128))/128+70000;
+				  motor_left_forward(left_pwm);
+			  }
+			  if(right_value < 128){
+				  uint32_t right_pwm = (50000*(128-(uint32_t)right_value))/128+70000;
+				  motor_right_reverse(right_pwm);
+			  }else{
+				  uint32_t right_pwm = (50000*((uint32_t)right_value-128))/128+70000;
+				  motor_right_forward(right_pwm);
+			  }
+			  if(120 < left_value && left_value < 140){
+				  motor_left_stop();
+			  }
+			  if(120 < right_value && right_value < 140){
+				  motor_right_stop();
+			  }
 		  printf("left: %d, right: %d\n\r", left_value, right_value);
+		  }
 	  }
 
-	  if (IR_count > 10) {
+	  if (1) {
 		  HAL_I2C_Master_Transmit(&hi2c1, SAD_IRCAM_W, &reg, 1, 1000);
 		  HAL_I2C_Master_Receive(&hi2c1, SAD_IRCAM_R, buf, 128, 1000);
 
@@ -429,6 +450,60 @@ int main(void)
 
 		  printf("frame max idx=%d val=%d, stable idx=%d (row=%d col=%d)\n\r",
 		             frame_max_idx, frame_max_val, stable_idx, row, col);
+
+		  //PI CONTROLLER
+		  if (control_mode == MODE_IR_ONLY ||
+		         (control_mode == MODE_MIXED &&
+		          fabsf(((float)left_value) - 128.0f) < 5.0f &&
+		          fabsf(((float)right_value) - 128.0f) < 5.0f)) {
+			  //override only if ir only or joystick neutral
+
+			  float error = ((float)col) - 3.5f; //0+7/2
+
+			  //stop if its too cold or < 2, prevent robot from reacting to noise
+			  if (frame_max_val < 2){
+				  motor_left_stop();
+				  motor_right_stop();
+			  }
+			  else{
+				  error_integral += error * dt;
+
+				  if (error_integral > 50.0f){
+					  error_integral = 50.0f;
+				  }
+				  if (error_integral < -50.0f){
+					  error_integral = -50.0f;
+				  }
+
+				  float steering = Kp * error + Ki * error_integral;
+
+				  int32_t base = 30000;
+
+				  int32_t left_pwm  = (int32_t)(base - steering);
+				  int32_t right_pwm = (int32_t)(base + steering);
+
+				  if (left_pwm < 0){
+					  left_pwm = 0;
+				  }
+				  if (left_pwm > 65535){
+					  left_pwm = 65535;
+				  }
+				  if (right_pwm < 0){
+					  right_pwm = 0;
+				  }
+				  if (right_pwm > 65535){
+					  right_pwm = 65535;
+				  }
+
+					// drive both wheels forward toward heat
+					motor_left_forward( (uint16_t)left_pwm );
+					motor_right_forward( (uint16_t)right_pwm );
+
+				  printf("PI: err=%.2f, integ=%.2f, steer=%.2f, L=%ld R=%ld\r\n",
+								   error, error_integral, steering, left_pwm, right_pwm);
+
+			  }
+		  }
 
 
 //		  HAL_UART_Transmit(&huart4, temp_send, 32, 100);

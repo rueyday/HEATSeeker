@@ -73,19 +73,24 @@ static void MX_UART4_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void HAL_GPIO_EXTI_Callback(uint16_t pin) {
+	void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+	{
+	    if (GPIO_Pin == GPIO_PIN_2) {
+	        printf("EXTI: PB2\r\n");
+	    }
+	    else if (GPIO_Pin == GPIO_PIN_9) {
+	        printf("EXTI: PE9\r\n");
+	    }
+	    else if (GPIO_Pin == GPIO_PIN_11) {
+	        printf("EXTI: PE11\r\n");
+	    }
+	    else if (GPIO_Pin == GPIO_PIN_13) {
+	        printf("EXTI: PC13/PF13\r\n");
+	    }
 
-	if(pin == 5) {
-
+	    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, x);
+	    x ^= 1;
 	}
-	printf("Interrupt number: %d\n\r", pin);
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, x);
-	for(uint32_t i = 0; i < 400; i++);
-	if(x % 2 == 0) {x++;}
-	else {x--;}
-
-	return;
-}
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 	return;
@@ -385,11 +390,11 @@ int main(void)
 	      dir_t dir = joystick_get_direction(x_raw, y_raw);
 
 	      encode_direction(dir, &uart_buffer[0], &uart_buffer[1]);
-
-	      printf("-------------------------\r\n");
-	      printf("x_raw: %lu, y_raw: %lu\r\n", x_raw, y_raw);
-	      printf("dir: %d, out L: %d, out R: %d\r\n",
-	             (int)dir, uart_buffer[0], uart_buffer[1]);
+//
+//	      printf("-------------------------\r\n");
+//	      printf("x_raw: %lu, y_raw: %lu\r\n", x_raw, y_raw);
+//	      printf("dir: %d, out L: %d, out R: %d\r\n",
+//	             (int)dir, uart_buffer[0], uart_buffer[1]);
 
 	      HAL_UART_Transmit(&huart4, uart_buffer, 2, 100);
 	      HAL_Delay(100);
@@ -693,19 +698,39 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOG_CLK_ENABLE();
+  __HAL_RCC_GPIOE_CLK_ENABLE();
+  __HAL_RCC_GPIOF_CLK_ENABLE();
   HAL_PWREx_EnableVddIO2();
 
   /*Configure GPIO pin : PC13 */
   GPIO_InitStruct.Pin = GPIO_PIN_13;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;  // recommended
+  GPIO_InitStruct.Pull = GPIO_PULLUP;           // required
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PB2 */
   GPIO_InitStruct.Pin = GPIO_PIN_2;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  // PE9 as button to 3V3
+  GPIO_InitStruct.Pin = GPIO_PIN_9;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;   // detect 0 -> 1
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;         // idle = 0
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+  // PE11
+  GPIO_InitStruct.Pin = GPIO_PIN_11;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+  // PF13 (if used)
+  GPIO_InitStruct.Pin = GPIO_PIN_13;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI2_IRQn, 0, 0);
@@ -713,6 +738,9 @@ static void MX_GPIO_Init(void)
 
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
