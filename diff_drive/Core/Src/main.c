@@ -237,15 +237,6 @@ void motor_right_stop() {
     motor_right_set_speed(0);
 }
 
-uint8_t max(int arr[]){
-	int max = 0;
-	for (int i = 0; i < size_of(arr); i++){
-		if (arr[i] > max){
-			max = arr[i];
-		}
-	}
-	return max;
-}
 
 uint8_t find_brightest_pixel(const uint8_t *frame, uint8_t *max_val_out){
     uint8_t best_idx = 0;
@@ -278,7 +269,7 @@ uint8_t getStable(){
 	for (int i = 0; i < history_count; i++){
 		int idx = brightest_history[i];
 		if (i < 64){
-			count[idx]++;
+			count[i]++;
 		}
 	}
 	//find max and index of the most freq + brightest count
@@ -290,7 +281,7 @@ uint8_t getStable(){
 			best_idx = i;
 		}
 	}
-	return best_idx;
+	return (uint8_t)best_idx;
 }
 /* USER CODE END 0 */
 
@@ -342,7 +333,7 @@ int main(void)
 //  HAL_UART_Receive_IT(&huart4, xbee_glass_int_buf, 2);
   uint8_t left_value;
   uint8_t right_value;
-  uint8_t IR_count;
+  uint8_t IR_count = 0;
   uint8_t OTcount = 0;
   /* USER CODE END 2 */
 
