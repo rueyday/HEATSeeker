@@ -65,6 +65,11 @@ volatile uint8_t glass_xbee_ready = 0;
 uint8_t temp_send[32];
 uint8_t xbee_glass_int_buf[2];
 
+//for temp tracking
+#define HISTORY_LEN 10
+uint8_t brightest_history[HISTORY_LEN];
+uint8_t history_pos = 0; // where to write next
+uint8_t history_count = 0; // how many valid entries (<= 50)
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -231,6 +236,53 @@ void motor_right_stop() {
 	HAL_GPIO_WritePin(DIR_R2_PORT, DIR_R2_PIN, GPIO_PIN_SET);
     motor_right_set_speed(0);
 }
+
+
+uint8_t find_brightest_pixel(const uint8_t *frame, uint8_t *max_val_out){
+    uint8_t best_idx = 0;
+    uint8_t best_val = 0;
+
+    for (int i = 0; i < 32; i++) {
+        uint8_t byte = frame[i];
+        uint8_t hi = (byte >> 4) & 0x0F;
+        uint8_t lo = byte & 0x0F;
+
+        if (hi > best_val) {
+            best_val = hi;
+            best_idx = i * 2;
+        }
+        if (lo > best_val) {
+            best_val = lo;
+            best_idx = i * 2 + 1;
+        }
+    }
+
+    if (max_val_out) {
+        *max_val_out = best_val;
+    }
+    return best_idx;
+}
+uint8_t getStable(){
+	//make array of counts ranging from 0-64 to see which pixel is brightest and appears most
+	uint8_t count[64] = {0};
+
+	for (int i = 0; i < history_count; i++){
+		int idx = brightest_history[i];
+		if (i < 64){
+			count[i]++;
+		}
+	}
+	//find max and index of the most freq + brightest count
+	int best_idx = 0;
+	int best_count = 0;
+	for (int i = 0; i < 64; i++){
+		if (count[i] > best_count){
+			best_count = count[i];
+			best_idx = i;
+		}
+	}
+	return (uint8_t)best_idx;
+}
 /* USER CODE END 0 */
 
 /**
@@ -281,7 +333,8 @@ int main(void)
 //  HAL_UART_Receive_IT(&huart4, xbee_glass_int_buf, 2);
   uint8_t left_value;
   uint8_t right_value;
-  uint8_t IR_count;
+  uint8_t IR_count = 0;
+  uint8_t OTcount = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -358,6 +411,25 @@ int main(void)
 		      if (i % 4 == 3) printf("\n\r");
 		  }
 		  printf("-----------\n\r");
+
+		  uint8_t frame_max_val;
+		  uint8_t frame_max_idx = find_brightest_pixel(temp_send, &frame_max_val);
+
+		  // circular buffer
+		  brightest_history[history_pos] = frame_max_idx;
+		  history_pos = (history_pos + 1) % HISTORY_LEN;
+		  if (history_count < HISTORY_LEN) {
+		      history_count++;
+		  }
+
+		  //get stable index
+		  uint8_t stable_idx = getStable();
+		  uint8_t row = stable_idx / 8;
+		  uint8_t col = stable_idx % 8;
+
+		  printf("frame max idx=%d val=%d, stable idx=%d (row=%d col=%d)\n\r",
+		             frame_max_idx, frame_max_val, stable_idx, row, col);
+
 
 //		  HAL_UART_Transmit(&huart4, temp_send, 32, 100);
 		  // In transmitter, after sending:
