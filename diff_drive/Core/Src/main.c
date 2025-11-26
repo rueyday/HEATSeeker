@@ -125,8 +125,15 @@ int xbee_readline(char *buf, int maxlen, UART_HandleTypeDef *huartx)
 }
 
 void xbee_send(const char* cmd, UART_HandleTypeDef *huartx) {
+	uint8_t resp[8];
+	HAL_StatusTypeDef st;
+
 	HAL_UART_Transmit(huartx, (uint8_t*)cmd, strlen(cmd), 100);
 	HAL_UART_Transmit(huartx, (uint8_t*)"\r", 1, 100);
+	HAL_Delay(30);
+
+	HAL_UART_Receive(huartx, resp, 3, 1000);
+	printf("resp: %s\r", resp);
 }
 
 uint8_t xbee_enter_command(UART_HandleTypeDef *huartx)

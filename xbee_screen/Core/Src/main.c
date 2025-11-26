@@ -259,9 +259,23 @@ int main(void)
 
   // Write data to local screenbuffer
   OLED_SetCursor(0, 0);
-  OLED_WriteString("Initialization", Font_7x10, White);
+  OLED_WriteString("Initialization000000000000000000000", Font_7x10, White);
   OLED_SetCursor(0, 10);
-  OLED_WriteString("Done >:)", Font_7x10, White);
+  OLED_WriteString("Done >:)000000000000000000000000000", Font_7x10, White);
+  OLED_SetCursor(0, 20);
+  OLED_WriteString("3rd line000000000000000000000000000", Font_7x10, White);
+  OLED_SetCursor(0, 30);
+  OLED_WriteString("4rd line000000000000000000000000000", Font_7x10, White);
+  OLED_SetCursor(0, 40);
+  OLED_WriteString("5th line000000000000000000000000000", Font_7x10, White);
+  OLED_SetCursor(0, 50);
+  OLED_WriteString("6th line000000000000000000000000000", Font_7x10, White);
+  OLED_SetCursor(0, 60);
+  OLED_WriteString("7th line000000000000000000000000000", Font_7x10, White);
+  OLED_SetCursor(0, 70);
+  OLED_WriteString("8th line000000000000000000000000000", Font_7x10, White);
+  OLED_SetCursor(0, 80);
+  OLED_WriteString("9th line000000000000000000000000000", Font_7x10, White);
 
 //  OLED_UpdateScreen(&hi2c1);
 //  OLED_SetCursor(0, 36);
