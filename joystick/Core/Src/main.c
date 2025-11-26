@@ -702,34 +702,34 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOF_CLK_ENABLE();
   HAL_PWREx_EnableVddIO2();
 
-  /*Configure GPIO pin : PC13 */
-  GPIO_InitStruct.Pin = GPIO_PIN_13;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;  // recommended
-  GPIO_InitStruct.Pull = GPIO_PULLUP;           // required
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+//  /*Configure GPIO pin : PC13 */
+//  GPIO_InitStruct.Pin = GPIO_PIN_13;
+//  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;  // recommended
+//  GPIO_InitStruct.Pull = GPIO_PULLUP;           // required
+//  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PB2 */
-  GPIO_InitStruct.Pin = GPIO_PIN_2;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  // PB2
+  GPIO_InitStruct.Pin  = GPIO_PIN_2;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  // PE9 as button to 3V3
-  GPIO_InitStruct.Pin = GPIO_PIN_9;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;   // detect 0 -> 1
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;         // idle = 0
+  // PE9  (button → GND)
+  GPIO_InitStruct.Pin  = GPIO_PIN_9;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-  // PE11
-  GPIO_InitStruct.Pin = GPIO_PIN_11;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  // PE11 (also likely button → GND)
+  GPIO_InitStruct.Pin  = GPIO_PIN_11;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-  // PF13 (if used)
-  GPIO_InitStruct.Pin = GPIO_PIN_13;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  // PF13 = YOUR “user” button
+  GPIO_InitStruct.Pin  = GPIO_PIN_13;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;   // falling = press
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
