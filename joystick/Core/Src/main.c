@@ -73,25 +73,33 @@ static void MX_UART4_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-	void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-	{
-	    if (GPIO_Pin == GPIO_PIN_2) {
-	        printf("EXTI: PB2\r\n");
-	    }
-	    else if (GPIO_Pin == GPIO_PIN_9) {
-	        printf("EXTI: PE9\r\n");
-	    }
-	    else if (GPIO_Pin == GPIO_PIN_11) {
-	        printf("EXTI: PE11\r\n");
-	    }
-	    else if (GPIO_Pin == GPIO_PIN_13) {
-	        printf("EXTI: PC13/PF13\r\n");
-	    }
+volatile uint8_t pe9_pressed = 0;
+volatile uint8_t pe11_pressed = 0;
+volatile uint8_t pf13_pressed = 0;
 
-	    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, x);
-	    x ^= 1;
-	}
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+    uint32_t now = HAL_GetTick();  // for debouncing
 
+    static uint32_t last_pe9  = 0;
+    static uint32_t last_pe11 = 0;
+    static uint32_t last_pf13 = 0;
+    if (GPIO_Pin == GPIO_PIN_9) {
+        if (now - last_pe9 < 200) return;
+        last_pe9 = now;
+        pe9_pressed = 1;
+    }
+    if (GPIO_Pin == GPIO_PIN_11) {
+        if (now - last_pe11 < 200) return;
+        last_pe11 = now;
+        pe11_pressed = 1;
+    }
+    if (GPIO_Pin == GPIO_PIN_13) {
+        if (now - last_pf13 < 200) return;
+        last_pf13 = now;
+        pf13_pressed = 1;
+    }
+}
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 	return;
 }
@@ -398,6 +406,23 @@ int main(void)
 
 	      HAL_UART_Transmit(&huart4, uart_buffer, 2, 100);
 	      HAL_Delay(100);
+
+	      //debug
+	      if (pe9_pressed) {
+	          pe9_pressed = 0;
+	          printf("PE9 press!\r\n");
+	      }
+
+	      if (pe11_pressed) {
+	          pe11_pressed = 0;
+	          printf("PE11 press!\r\n");
+	      }
+
+	      if (pf13_pressed) {
+	          pf13_pressed = 0;
+	          printf("PF13 press!\r\n");
+	      }
+
   }
   /* USER CODE END 3 */
 }
