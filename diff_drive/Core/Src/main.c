@@ -83,10 +83,24 @@ const float dt = 0.03f;//30ms
 typedef enum {
     MODE_JOYSTICK = 0,
     MODE_IR_ONLY  = 1,
-    MODE_MIXED    = 2
+    MODE_MIXED    = 2,
 } control_mode_t;
 
+int power = 0;
+
 volatile control_mode_t control_mode = MODE_IR_ONLY;
+
+#define DIR_L1_PORT GPIOE
+#define DIR_L1_PIN  GPIO_PIN_2
+#define DIR_L2_PORT GPIOE
+#define DIR_L2_PIN  GPIO_PIN_4
+#define DIR_R1_PORT GPIOA
+#define DIR_R1_PIN  GPIO_PIN_2
+#define DIR_R2_PORT GPIOA
+#define DIR_R2_PIN  GPIO_PIN_3
+
+#define RED_Port	GPIOF
+#define RED_Pin		GPIO_PIN_12
 
 /* USER CODE END PV */
 
@@ -127,19 +141,12 @@ int xbee_readline(char *buf, int maxlen, UART_HandleTypeDef *huartx)
 }
 
 void xbee_send(const char* cmd, UART_HandleTypeDef *huartx) {
-<<<<<<< HEAD
-	uint8_t resp[8];
-	HAL_StatusTypeDef st;
-
-	HAL_UART_Transmit(huartx, (uint8_t*)cmd, strlen(cmd), 100);
-=======
 //	HAL_UART_Transmit(huartx, (uint8_t*)cmd, strlen(cmd), 100);
 //	HAL_UART_Transmit(huartx, (uint8_t*)"\r", 1, 100);
 	uint8_t resp[8];
 	HAL_StatusTypeDef st;
 
 	HAL_UART_Transmit(huartx, (uint8_t)cmd, strlen(cmd), 100);
->>>>>>> 98de25d26df8afab7f2b8556d04fd6657b841551
 	HAL_UART_Transmit(huartx, (uint8_t*)"\r", 1, 100);
 	HAL_Delay(30);
 
@@ -172,20 +179,6 @@ uint8_t xbee_enter_command(UART_HandleTypeDef *huartx)
         return 0;
 }
 
-//void xbee_coord_setup() {
-//	if(xbee_enter_command(&huart5)) {
-//		xbee_send("ATID 1111", &huart5);
-//		xbee_send("ATCH 16", &huart5);
-//		xbee_send("ATMY 1", &huart5);
-//		xbee_send("ATDL 2", &huart5);
-//		xbee_send("ATWR", &huart5);
-//		xbee_send("ATCN", &huart5);
-//	}
-//	else {
-//		printf("xbee coordinator setup failed! \r\n");
-//	}
-//}
-
 void xbee_router_setup() {
 	if(xbee_enter_command(&huart5)) {
 		xbee_send("ATID 1111", &huart5);
@@ -213,15 +206,6 @@ void xbee_ir_setup() {
 		printf("xbee ir setup failed! \r\n");
 	}
 }
-
-#define DIR_L1_PORT GPIOE
-#define DIR_L1_PIN  GPIO_PIN_2
-#define DIR_L2_PORT GPIOE
-#define DIR_L2_PIN  GPIO_PIN_4
-#define DIR_R1_PORT GPIOA
-#define DIR_R1_PIN  GPIO_PIN_2
-#define DIR_R2_PORT GPIOA
-#define DIR_R2_PIN  GPIO_PIN_3
 
 void motors_gpio_init(void) {
   HAL_GPIO_WritePin(DIR_L1_PORT, DIR_L1_PIN, GPIO_PIN_RESET);
@@ -271,6 +255,11 @@ void motor_right_stop() {
     motor_right_set_speed(0);
 }
 
+void setRed() {
+    HAL_GPIO_WritePin(RED_Port, RED_Pin, GPIO_PIN_SET);
+//    HAL_GPIO_WritePin(YELLOW_GPIO_Port, YELLOW_Pin, 0);
+//    HAL_GPIO_WritePin(GREEN_GPIO_Port, GREEN_Pin, 0);
+}
 
 uint8_t find_brightest_pixel(const uint8_t *frame, uint8_t *max_val_out){
     uint8_t best_idx = 0;
@@ -365,9 +354,14 @@ int main(void)
 
   HAL_UART_Receive_IT(&huart5, xbee_int_buf, 2);
 //  HAL_UART_Receive_IT(&huart4, xbee_glass_int_buf, 2);
-  uint8_t left_value;
-  uint8_t right_value;
-  uint8_t OTcount = 0;
+  uint8_t command;
+//  uint8_t left_value;
+//  uint8_t right_value;
+
+  uint8_t target_row = 4;
+  uint8_t target_col = 4;
+
+  setRed();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -378,37 +372,47 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 //	  HAL_UART_Receive(&huart5, buf, 2, 200);
-	  if (0){
-		  xbee_int_ready = 0;
-		  left_value = xbee_int_buf[0];
-		  right_value = xbee_int_buf[1];
+	  if (xbee_int_ready){
+		  command = xbee_int_buf[0];
+		  if(command >> 7){
+			  power = !power;
+		  }
+		  printf("switch mode: %d \n", (command >> 6));
+		  if((command >> 6) & 0b1){
 
-//		  left_value =250;
-//		  right_value = 250;
+			  if(control_mode == MODE_JOYSTICK){
+				  control_mode = MODE_IR_ONLY;
+			  }else{
+				  control_mode = MODE_JOYSTICK;
+			  }
+		  }
+		  if(control_mode == MODE_JOYSTICK){
+			  uint8_t right_command = command & 0b11;
+			  int right_dir = command & 0b100;
 
-//		  if(control_mode == MODE_JOYSTICK || control_mode == MODE_MIXED){
-		  if(left_value < 128){
-			  uint32_t left_pwm = (50000*(128-(uint32_t)left_value))/128+70000;
-			  motor_left_reverse(left_pwm);
-		  }else{
-			  uint32_t left_pwm = (50000*((uint32_t)left_value-128))/128+70000;
-			  motor_left_forward(left_pwm);
+			  command = (command >>3);
+			  uint8_t left_command = command & 0b11;
+			  int left_dir = command & 0b100;
+//			  printf("left: %d, right: %d\n\r", left_command, right_command);
+
+			  uint32_t right_pwm = (50000*(uint32_t)right_command)/3+70000;
+			  if(right_dir){
+				  motor_right_forward(right_pwm);
+			  }else if(left_command == 0){
+				  motor_right_stop();
+			  } else {
+				  motor_right_reverse(right_pwm);
+			  }
+
+			  uint32_t left_pwm = (50000*left_command)/3+70000;
+			  if(left_dir){
+				  motor_left_forward(left_pwm);
+			  }else if(left_command == 0){
+				  motor_left_stop();
+			  } else {
+				  motor_left_reverse(left_pwm);
+			  }
 		  }
-		  if(right_value < 128){
-			  uint32_t right_pwm = (50000*(128-(uint32_t)right_value))/128+70000;
-			  motor_right_reverse(right_pwm);
-		  }else{
-			  uint32_t right_pwm = (50000*((uint32_t)right_value-128))/128+70000;
-			  motor_right_forward(right_pwm);
-		  }
-		  if(120 < left_value && left_value < 140){
-			  motor_left_stop();
-		  }
-		  if(120 < right_value && right_value < 140){
-			  motor_right_stop();
-		  }
-		  printf("left: %d, right: %d\n\r", left_value, right_value);
-//		  }
 	  }
 	  uint8_t temp_send[32];
 	  if (1) {
@@ -452,14 +456,14 @@ int main(void)
   //		  HAL_UART_Transmit(&huart4, temp_send, 32, 100);
 		  // In transmitter, after sending:
 		  if (HAL_UART_Transmit(&huart4, temp_send, 32, 100) == HAL_OK) {
-			  printf("Sent 32 bytes via UART4\n");
+//			  printf("Sent 32 bytes via UART4\n");
   //		      HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);  // Blink LED on transmit
 		  } else {
 			  printf("UART4 transmit failed\n");
 		  }
 	  }
 
-	  if (1) {
+	  if (control_mode == MODE_IR_ONLY) {
 		  uint8_t frame_max_val;
 		  uint8_t frame_max_idx = find_brightest_pixel(temp_send, &frame_max_val);
 
@@ -473,14 +477,25 @@ int main(void)
 		  //get stable index
 		  uint8_t stable_idx = getStable();
 		  uint8_t row = stable_idx / 8;
+		  if(row < target_row){
+			  target_row--;
+		  }else if (row > target_row){
+			  target_row++;
+		  }
 		  uint8_t col = stable_idx % 8;
+		  if(col < target_col){
+			  target_col--;
+		  }else if (col > target_col){
+			  target_col++;
+		  }
+
 
 		  printf("[Target]frame max idx=%d val=%d, stable idx=%d (row=%d col=%d)\n\r",
-		             frame_max_idx, frame_max_val, stable_idx, row, col);
+		             frame_max_idx, frame_max_val, stable_idx, target_row, target_col);
 
 		  //PI CONTROLLER
-		  float rotate_error = ((float)col) - 3.5f; //0+7/2
-		  float forward_error = ((float)row) - 3.5f; //0+7/2
+		  float rotate_error = ((float)target_col) - 3.5f; //0+7/2
+		  float forward_error = ((float)target_row) - 3.5f; //0+7/2
 
 		  if (frame_max_val < 4){
 			  motor_left_stop();
@@ -498,7 +513,7 @@ int main(void)
 			  if(-1<rotate_error && rotate_error<1){
 				  rotate_error = 0;
 			  }
-			  if(-3<forward_error && forward_error <3){
+			  if(-3<forward_error && forward_error <2){
 				  forward_error = 0;
 			  }
 
@@ -512,33 +527,26 @@ int main(void)
 			  if(left_command > 0){
 				  uint32_t rotate_pwm =	70000 + (uint32_t)(left_command);
 				  motor_left_forward(rotate_pwm);
-				  printf("[debug] Left: PI: err=%.2f, integ=%.2f, steer=%.2f, pwm=%ld\r\n",
-				  						  rotate_error, error_integral, steering, rotate_pwm);
+//				  printf("[debug] Left: PI: err=%.2f, integ=%.2f, steer=%.2f, pwm=%ld\r\n",
+//				  						  rotate_error, error_integral, steering, rotate_pwm);
 			  }else{
 				  uint32_t rotate_pwm =	70000 + (uint32_t)(-left_command);
 				  motor_left_reverse(rotate_pwm);
-				  printf("[debug] Left: PI: err=%.2f, integ=%.2f, steer=%.2f, pwm=%ld\r\n",
-						  rotate_error, error_integral, steering, rotate_pwm);
+//				  printf("[debug] Left: PI: err=%.2f, integ=%.2f, steer=%.2f, pwm=%ld\r\n",
+//						  rotate_error, error_integral, steering, rotate_pwm);
 			  }
 			  if(right_command > 0){
 				  uint32_t rotate_pwm =	70000 + (uint32_t)(right_command);
 				  motor_right_forward(rotate_pwm);
-				  printf("[debug] Right: PI: err=%.2f, integ=%.2f, steer=%.2f, pwm=%ld\r\n",
-						  rotate_error, error_integral, steering, rotate_pwm);
+//				  printf("[debug] Right: PI: err=%.2f, integ=%.2f, steer=%.2f, pwm=%ld\r\n",
+//						  rotate_error, error_integral, steering, rotate_pwm);
 			  }else{
 				  uint32_t rotate_pwm =	70000 + (uint32_t)(-right_command);
 				  motor_right_reverse(rotate_pwm);
-				  printf("[debug] Right: PI: err=%.2f, integ=%.2f, steer=%.2f, pwm=%ld\r\n",
-						  rotate_error, error_integral, steering, rotate_pwm);
+//				  printf("[debug] Right: PI: err=%.2f, integ=%.2f, steer=%.2f, pwm=%ld\r\n",
+//						  rotate_error, error_integral, steering, rotate_pwm);
 			  }
 		  }
-//		  if (control_mode == MODE_IR_ONLY ||
-//		         (control_mode == MODE_MIXED &&
-//		          fabsf(((float)left_value) - 128.0f) < 5.0f &&
-//		          fabsf(((float)right_value) - 128.0f) < 5.0f)) {
-			  //override only if ir only or joystick neutral
-			  //stop if its too cold or < 2, prevent robot from reacting to noise
-//		  }
 	  }
 //	  HAL_Delay(30);
   }
@@ -864,6 +872,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2|GPIO_PIN_3, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOF, GPIO_PIN_12, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : PE2 PE4 */
@@ -931,6 +942,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PF12 */
+  GPIO_InitStruct.Pin = GPIO_PIN_12;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PE7 PE8 PE9 PE10
                            PE11 PE12 PE13 */

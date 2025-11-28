@@ -55,7 +55,7 @@ static uint32_t adc_buffer[2];
 static uint8_t x = 0;
 float left_motor_speed = 0.0f;
 float right_motor_speed = 0.0f;
-uint8_t uart_buffer[2];
+uint8_t uart_buffer[1];
 char xbee_buffer[100];
 /* USER CODE END PV */
 
@@ -122,13 +122,6 @@ int xbee_readline(char *buf, int maxlen)
     buf[i] = '\0';
     return i;
 }
-//uint8_t xbee_enter_command() {
-//	HAL_Delay(1000); ///need to wait before and after to guard
-//	HAL_UART_Transmit(&huart4, (uint8_t*)"+++", 3, 100);
-//	HAL_Delay(1000);
-//
-//	return 1;
-//}
 uint8_t xbee_enter_command(void)
 {
     uint8_t resp[8];
@@ -185,162 +178,55 @@ float normalize_adc(uint32_t adc_val) {
     return ((float)adc_val - 2047.5f) / 2047.5f;  // Center at 0, range ±1.0
 }
 
-// Differential drive forward kinematics
-void calculate_wheel_speeds(uint32_t x_adc, uint32_t y_adc, float *left, float *right) {
-    float x = normalize_adc(x_adc);  // Turning
-    float y = normalize_adc(y_adc);  // Forward/backward
-
-    // Apply deadzone to prevent drift
-    float deadzone = 0.1f;
-    if (fabs(x) < deadzone) x = 0.0f;
-    if (fabs(y) < deadzone) y = 0.0f;
-
-    // Differential drive mixing
-    *left = y + x;   // Left wheel
-    *right = y - x;  // Right wheel
-
-    // Normalize to [-1.0, +1.0] range
-    float max_val = fmaxf(fabsf(*left), fabsf(*right));
-    if (max_val > 1.0f) {
-        *left /= max_val;
-        *right /= max_val;
-    }
-}
-
-// Optional: Apply non-linear response for better control
-void calculate_wheel_speeds_smooth(uint32_t x_adc, uint32_t y_adc, float *left, float *right) {
-    float x = normalize_adc(x_adc);
-    float y = normalize_adc(y_adc);
-
-    // Deadzone
-    float deadzone = 0.1f;
-    if (fabsf(x) < deadzone) x = 0.0f;
-    if (fabsf(y) < deadzone) y = 0.0f;
-
-    // Apply cubic scaling for finer control at low speeds
-    x = x * x * x;  // Or use x * fabsf(x) for quadratic
-    y = y * y * y;
-
-    // Differential drive
-    *left = y + x;
-    *right = y - x;
-
-    // Normalize
-    float max_val = fmaxf(fabsf(*left), fabsf(*right));
-    if (max_val > 1.0f) {
-        *left /= max_val;
-        *right /= max_val;
-    }
-}
-
 // Convert ADC to float (0.0 to 1.0 range) then to 8-bit
 uint8_t adc_to_8bit(uint32_t adc_val) {
     float normalized = (float)adc_val / 4095.0f;  // 0.0 to 1.0
     return (uint8_t)(normalized * 255.0f);        // Scale to 0-255
 }
 
-//FAULTY CODE
-//float filterX(uint32_t adc_val){
-//	if (adc_val > 2100){
-//		return 4095.0f;
-//	}
-//	else if (adc_val < 1940){
-//		return 0.0f;
-//	}
-//	else{
-//		return adc_val;
-//	}
-//}
-//float filterY(uint32_t adc_val){
-//	if (adc_val > 2035){
-//		return 4095.0f;
-//	}
-//	else if (adc_val < 1875){
-//		return 0.0f;
-//	}
-//	else{
-//		return adc_val;
-//	}
-//}
+#define X_CENTER_ADC   1890.0f   // approximate X center (adc_buffer[0])
+#define Y_CENTER_ADC   1830.0f   // approximate Y center (adc_buffer[1])
+//#define R_DEADZONE_ADC 150.0f    // deadzone radius in ADC units, tune
 
-#define X_CENTER_ADC   2020.0f   // approximate X center (adc_buffer[0])
-#define Y_CENTER_ADC   1955.0f   // approximate Y center (adc_buffer[1])
-#define R_DEADZONE_ADC 150.0f    // deadzone radius in ADC units, tune
-
-typedef enum {
-    DIR_STOP = 0,
-    DIR_FWD,
-    DIR_BACK,
-    DIR_LEFT,
-    DIR_RIGHT
-} dir_t;
-
-// Compute angle in degrees: 0° = +X (right), 90° = +Y (forward)
-static float joystick_angle_deg(uint32_t x_raw, uint32_t y_raw)
+uint8_t encode_direction(uint32_t x_raw, uint32_t y_raw)
 {
-    float dx = (float)x_raw - X_CENTER_ADC;
-    float dy = (float)y_raw - Y_CENTER_ADC;
+	float dx = (float)x_raw - X_CENTER_ADC;
+	float dy = (float)y_raw - Y_CENTER_ADC;  // flip as above if needed
 
-    // NOTE: if pushing forward *decreases* Y ADC, flip sign:
-    // dy = Y_CENTER_ADC - (float)y_raw;
+	float left_val = dx +dy;
+	float right_val = dx - dy;
 
-    float ang = atan2f(dy, dx) * 180.0f / (float)M_PI;
-    if (ang < 0.0f) ang += 360.0f;
-    return ang;
-}
+	uint8_t left_command;
+	uint8_t right_command;
 
-// Decide which direction based on radius + angle
-static dir_t joystick_get_direction(uint32_t x_raw, uint32_t y_raw)
-{
-    float dx = (float)x_raw - X_CENTER_ADC;
-    float dy = (float)y_raw - Y_CENTER_ADC;  // flip as above if needed
+	if(-350 < left_val && left_val < 350){
+		left_command = 0;
+	}else if(-800 < left_val && left_val < 800){
+		left_command = 1;
+	}else if(-1300 < left_val && left_val < 1300){
+		left_command = 2;
+	}else{
+		left_command = 3;
+	}
 
-    float r2 = dx*dx + dy*dy;
-    if (r2 < R_DEADZONE_ADC * R_DEADZONE_ADC) {
-        return DIR_STOP;
-    }
+	if(-350 < right_val && right_val < 350){
+		right_command = 0;
+	}else if(-800 < right_val && right_val < 800){
+		right_command = 1;
+	}else if(-1300 < right_val && right_val < 1300){
+		right_command = 2;
+	}else{
+		right_command = 3;
+	}
 
-    float ang = joystick_angle_deg(x_raw, y_raw);
-
-    // Your ideal bins:
-    // forward - 90 (range 45-134)
-    // backward - 270 (range 235-314)
-    // right - 0 (range 315-44)
-    // left - 180 (range 135-234)
-
-    if (ang >= 45.0f  && ang <= 134.0f) return DIR_FWD;
-    if (ang >= 135.0f && ang <= 234.0f) return DIR_LEFT;
-    if (ang >= 235.0f && ang <= 314.0f) return DIR_BACK;
-    // wrap-around: 315–359 or 0–44
-    return DIR_RIGHT;
-}
-
-// Map direction to the 2 bytes we send to the robot
-static void encode_direction(dir_t dir, uint8_t *b0, uint8_t *b1)
-{
-    switch (dir) {
-    case DIR_FWD:
-        *b0 = 220;  // left wheel "forward"
-        *b1 = 220;  // right wheel "forward"
-        break;
-    case DIR_BACK:
-        *b0 = 40;
-        *b1 = 40;
-        break;
-    case DIR_LEFT:
-        *b0 = 40;   // left slow/back
-        *b1 = 220;  // right fast/forward
-        break;
-    case DIR_RIGHT:
-        *b0 = 220;
-        *b1 = 40;
-        break;
-    case DIR_STOP:
-    default:
-        *b0 = 128;  // neutral
-        *b1 = 128;
-        break;
-    }
+	if(left_val > 0){
+		left_command += 4;
+	}
+	if(right_val > 0){
+		right_command += 4;
+	}
+//	printf("left: %d, right: %d \n\r", left_command, right_command);
+	return left_command * 8 + right_command;
 }
 
 /* USER CODE END 0 */
@@ -393,36 +279,44 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	  uint32_t x_raw = adc_buffer[0];  // check which is X / Y on your board
-	      uint32_t y_raw = adc_buffer[1];
+	  uint32_t y_raw = adc_buffer[1];
 
-	      dir_t dir = joystick_get_direction(x_raw, y_raw);
+//	  dir_t dir = joystick_get_direction();
+	  uart_buffer[0] = encode_direction(x_raw, y_raw);
 
-	      encode_direction(dir, &uart_buffer[0], &uart_buffer[1]);
+//	  printf("command: %d \n", uart_buffer[0]);
+
+	  if (pe9_pressed) {
+		  pe9_pressed = 0;
+		  printf("PE9 press!\r\n");
+		  uart_buffer[0] |= 0b10000000;
+	  }else{
+		  uart_buffer[0] &= 0b01111111;
+	  }
+
+	  if (pe11_pressed) {
+		  pe11_pressed = 0;
+		  printf("PE11 press!\r\n");
+		  uart_buffer[0] |= 0b01000000;
+//		  printf("command: %d \n", (uart_buffer[0]>>6));
+	  }else{
+		  uart_buffer[0] &= 0b10111111;
+	  }
+
+	  if (pf13_pressed) {
+		  pf13_pressed = 0;
+		  printf("PF13 press!\r\n");
+	  }
+
+
 //
 //	      printf("-------------------------\r\n");
 //	      printf("x_raw: %lu, y_raw: %lu\r\n", x_raw, y_raw);
 //	      printf("dir: %d, out L: %d, out R: %d\r\n",
 //	             (int)dir, uart_buffer[0], uart_buffer[1]);
 
-	      HAL_UART_Transmit(&huart4, uart_buffer, 2, 100);
-	      HAL_Delay(100);
-
-	      //debug
-	      if (pe9_pressed) {
-	          pe9_pressed = 0;
-	          printf("PE9 press!\r\n");
-	      }
-
-	      if (pe11_pressed) {
-	          pe11_pressed = 0;
-	          printf("PE11 press!\r\n");
-	      }
-
-	      if (pf13_pressed) {
-	          pf13_pressed = 0;
-	          printf("PF13 press!\r\n");
-	      }
-
+	  HAL_UART_Transmit(&huart4, uart_buffer, 2, 100);
+//	  HAL_Delay(100);
   }
   /* USER CODE END 3 */
 }
