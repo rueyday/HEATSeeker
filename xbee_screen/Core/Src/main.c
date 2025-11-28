@@ -59,6 +59,7 @@ uint8_t xbee_buffer[32];
 uint8_t xbee_int_buf[2];
 volatile uint8_t xbee_int_ready = 0;
 uint8_t r = 0;
+static ledFrame;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
