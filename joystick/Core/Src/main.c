@@ -55,8 +55,11 @@ static uint32_t adc_buffer[2];
 static uint8_t x = 0;
 float left_motor_speed = 0.0f;
 float right_motor_speed = 0.0f;
-uint8_t uart_buffer[1];
+uint8_t uart_buffer[2];
 char xbee_buffer[100];
+
+int power = 1;
+int mode = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -288,21 +291,28 @@ int main(void)
 
 	  if (pe9_pressed) {
 		  pe9_pressed = 0;
+		  power = !power;
 		  printf("PE9 press!\r\n");
+
+	  }
+	  if (pe11_pressed) {
+		  pe11_pressed = 0;
+		  mode = !mode;
+		  printf("PE11 press!\r\n");
+
+	  }
+	  if(power){
 		  uart_buffer[0] |= 0b10000000;
 	  }else{
 		  uart_buffer[0] &= 0b01111111;
 	  }
 
-	  if (pe11_pressed) {
-		  pe11_pressed = 0;
-		  printf("PE11 press!\r\n");
+	  if(mode){
 		  uart_buffer[0] |= 0b01000000;
-//		  printf("command: %d \n", (uart_buffer[0]>>6));
 	  }else{
 		  uart_buffer[0] &= 0b10111111;
 	  }
-
+	  printf("command: %d \n", (uart_buffer[0]>>6));
 	  if (pf13_pressed) {
 		  pf13_pressed = 0;
 		  printf("PF13 press!\r\n");

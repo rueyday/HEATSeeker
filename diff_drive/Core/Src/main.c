@@ -371,29 +371,71 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  uint8_t temp_send[32];
+	  HAL_I2C_Master_Transmit(&hi2c1, SAD_IRCAM_W, &reg, 1, 1000);
+	  HAL_I2C_Master_Receive(&hi2c1, SAD_IRCAM_R, buf, 128, 1000);
+
+
+	  int idx = 0;
+
+	  float T_MIN = 18.0f;
+	  float T_MAX = 32.0f;
+
+	  for (int i = 0; i < 8; i++) {
+		  for (int j = 0; j < 8; j += 2) {
+
+			  uint16_t raw1 = (buf[i*16 + j*2 + 1] << 8) | buf[i*16 + j*2];
+			  if (raw1 > 2047) raw1 -= 4096;
+			  float t1 = raw1 * 0.25f;
+
+			  if (t1 < T_MIN) t1 = T_MIN;
+			  int p1 = (int)(((t1-T_MIN) / (T_MAX-T_MIN)) * 15.0f);
+
+			  uint16_t raw2 = (buf[i*16 + (j+1)*2 + 1] << 8) | buf[i*16 + (j+1)*2];
+			  if (raw2 > 2047) raw2 -= 4096;
+			  float t2 = raw2 * 0.25f;
+
+			  if (t2 < T_MIN) t2 = T_MIN;
+			  int p2 = (int)(((t2-T_MIN) / (T_MAX-T_MIN)) * 15.0f);
+
+			  temp_send[idx++] = (uint8_t)((p1 << 4) | (p2 & 0x0F));
+		  }
+	  }
+
+//	  for (uint8_t i = 0; i < 32; i++) {
+//		  uint8_t byte = temp_send[i];
+//		  printf("%d %d  ", (byte >> 4) & 0x0F, byte & 0x0F);
+//		  if (i % 4 == 3) printf("\n\r");
+//	  }
+//	  printf("-----------\n\r");
+//		  HAL_UART_Transmit(&huart4, temp_send, 32, 100);
+	  // In transmitter, after sending:
+
 //	  HAL_UART_Receive(&huart5, buf, 2, 200);
 	  if (xbee_int_ready){
 		  command = xbee_int_buf[0];
 		  if(command >> 7){
-			  power = !power;
+			  power = 1;
+		  }else{
+			  power = 0;
+			  motor_left_stop();
+			  motor_right_stop();
 		  }
-		  printf("switch mode: %d \n", (command >> 6));
+		  printf("[debug] switch mode: %d \n", (command >> 6));
 		  if((command >> 6) & 0b1){
-
-			  if(control_mode == MODE_JOYSTICK){
-				  control_mode = MODE_IR_ONLY;
-			  }else{
-				  control_mode = MODE_JOYSTICK;
-			  }
+			  control_mode = MODE_JOYSTICK;
+		  }else{
+			  control_mode = MODE_IR_ONLY;
 		  }
-		  if(control_mode == MODE_JOYSTICK){
+
+		  if(control_mode == MODE_JOYSTICK && power){
 			  uint8_t right_command = command & 0b11;
 			  int right_dir = command & 0b100;
 
 			  command = (command >>3);
 			  uint8_t left_command = command & 0b11;
 			  int left_dir = command & 0b100;
-//			  printf("left: %d, right: %d\n\r", left_command, right_command);
+			  printf("left: %d, right: %d\n\r", left_command, right_command);
 
 			  uint32_t right_pwm = (50000*(uint32_t)right_command)/3+70000;
 			  if(right_dir){
@@ -414,56 +456,9 @@ int main(void)
 			  }
 		  }
 	  }
-	  uint8_t temp_send[32];
-	  if (1) {
-		  HAL_I2C_Master_Transmit(&hi2c1, SAD_IRCAM_W, &reg, 1, 1000);
-		  HAL_I2C_Master_Receive(&hi2c1, SAD_IRCAM_R, buf, 128, 1000);
 
 
-		  int idx = 0;
-
-		  float T_MIN = 18.0f;
-		  float T_MAX = 32.0f;
-
-		  for (int i = 0; i < 8; i++) {
-			  for (int j = 0; j < 8; j += 2) {
-
-				  uint16_t raw1 = (buf[i*16 + j*2 + 1] << 8) | buf[i*16 + j*2];
-				  if (raw1 > 2047) raw1 -= 4096;
-				  float t1 = raw1 * 0.25f;
-
-				  if (t1 < T_MIN) t1 = T_MIN;
-				  int p1 = (int)(((t1-T_MIN) / (T_MAX-T_MIN)) * 15.0f);
-
-				  uint16_t raw2 = (buf[i*16 + (j+1)*2 + 1] << 8) | buf[i*16 + (j+1)*2];
-				  if (raw2 > 2047) raw2 -= 4096;
-				  float t2 = raw2 * 0.25f;
-
-				  if (t2 < T_MIN) t2 = T_MIN;
-				  int p2 = (int)(((t2-T_MIN) / (T_MAX-T_MIN)) * 15.0f);
-
-				  temp_send[idx++] = (uint8_t)((p1 << 4) | (p2 & 0x0F));
-			  }
-		  }
-
-
-		  for (uint8_t i = 0; i < 32; i++) {
-		      uint8_t byte = temp_send[i];
-		      printf("%d %d  ", (byte >> 4) & 0x0F, byte & 0x0F);
-		      if (i % 4 == 3) printf("\n\r");
-		  }
-		  printf("-----------\n\r");
-  //		  HAL_UART_Transmit(&huart4, temp_send, 32, 100);
-		  // In transmitter, after sending:
-		  if (HAL_UART_Transmit(&huart4, temp_send, 32, 100) == HAL_OK) {
-//			  printf("Sent 32 bytes via UART4\n");
-  //		      HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);  // Blink LED on transmit
-		  } else {
-			  printf("UART4 transmit failed\n");
-		  }
-	  }
-
-	  if (control_mode == MODE_IR_ONLY) {
+	  if (control_mode == MODE_IR_ONLY && power){
 		  uint8_t frame_max_val;
 		  uint8_t frame_max_idx = find_brightest_pixel(temp_send, &frame_max_val);
 
@@ -547,6 +542,12 @@ int main(void)
 //						  rotate_error, error_integral, steering, rotate_pwm);
 			  }
 		  }
+	  }
+	  if (HAL_UART_Transmit(&huart4, temp_send, 32, 100) == HAL_OK) {
+		  printf("[debug] Sent 32 bytes via UART4\n");
+	  //		      HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);  // Blink LED on transmit
+	  } else {
+		  printf("[debug] UART4 transmit failed\n");
 	  }
 //	  HAL_Delay(30);
   }
