@@ -48,6 +48,8 @@ UART_HandleTypeDef hlpuart1;
 UART_HandleTypeDef huart4;
 UART_HandleTypeDef huart5;
 
+SPI_HandleTypeDef hspi1;
+
 TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
@@ -112,6 +114,7 @@ static void MX_UART5_Init(void);
 static void MX_LPUART1_UART_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_UART4_Init(void);
+static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -255,12 +258,6 @@ void motor_right_stop() {
     motor_right_set_speed(0);
 }
 
-void setRed() {
-    HAL_GPIO_WritePin(RED_Port, RED_Pin, GPIO_PIN_SET);
-//    HAL_GPIO_WritePin(YELLOW_GPIO_Port, YELLOW_Pin, 0);
-//    HAL_GPIO_WritePin(GREEN_GPIO_Port, GREEN_Pin, 0);
-}
-
 uint8_t find_brightest_pixel(const uint8_t *frame, uint8_t *max_val_out){
     uint8_t best_idx = 0;
     uint8_t best_val = 0;
@@ -342,6 +339,7 @@ int main(void)
   MX_LPUART1_UART_Init();
   MX_I2C1_Init();
   MX_UART4_Init();
+  MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
   motors_gpio_init();
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
@@ -361,7 +359,9 @@ int main(void)
   uint8_t target_row = 4;
   uint8_t target_col = 4;
 
-  setRed();
+  led_Init(&hspi1);
+  led_SetIllum(&hspi1, 0x01);
+  led_setColor(&hspi1, 0x00, 0x00, 0x10);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -371,6 +371,14 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+
+//	  HAL_Delay(200);
+//
+//	  HAL_Delay(200);
+
+//	  HAL_Delay(200);
+
+//	  HAL_Delay(200);
 	  uint8_t temp_send[32];
 	  HAL_I2C_Master_Transmit(&hi2c1, SAD_IRCAM_W, &reg, 1, 1000);
 	  HAL_I2C_Master_Receive(&hi2c1, SAD_IRCAM_R, buf, 128, 1000);
@@ -417,6 +425,7 @@ int main(void)
 		  if(command >> 7){
 			  power = 1;
 		  }else{
+			  led_setColor(&hspi1, 0x00, 0x00, 0xFF);
 			  power = 0;
 			  motor_left_stop();
 			  motor_right_stop();
@@ -429,6 +438,7 @@ int main(void)
 		  }
 
 		  if(control_mode == MODE_JOYSTICK && power){
+			  led_setColor(&hspi1, 0x00, 0xFF, 0x00);
 			  uint8_t right_command = command & 0b11;
 			  int right_dir = command & 0b100;
 
@@ -459,6 +469,7 @@ int main(void)
 
 
 	  if (control_mode == MODE_IR_ONLY && power){
+		  led_setColor(&hspi1, 0xFF, 0x00, 0x00);
 		  uint8_t frame_max_val;
 		  uint8_t frame_max_idx = find_brightest_pixel(temp_send, &frame_max_val);
 
@@ -791,6 +802,46 @@ static void MX_UART5_Init(void)
 }
 
 /**
+  * @brief SPI1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SPI1_Init(void)
+{
+
+  /* USER CODE BEGIN SPI1_Init 0 */
+
+  /* USER CODE END SPI1_Init 0 */
+
+  /* USER CODE BEGIN SPI1_Init 1 */
+
+  /* USER CODE END SPI1_Init 1 */
+  /* SPI1 parameter configuration*/
+  hspi1.Instance = SPI1;
+  hspi1.Init.Mode = SPI_MODE_MASTER;
+  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi1.Init.NSS = SPI_NSS_SOFT;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi1.Init.CRCPolynomial = 7;
+  hspi1.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
+  hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
+  if (HAL_SPI_Init(&hspi1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI1_Init 2 */
+
+  /* USER CODE END SPI1_Init 2 */
+
+}
+
+/**
   * @brief TIM3 Initialization Function
   * @param None
   * @retval None
@@ -922,14 +973,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PA4 PA5 PA6 PA7 */
-  GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF5_SPI1;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PB1 */
