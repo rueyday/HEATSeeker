@@ -27,46 +27,52 @@ uint8_t OLED_Init(I2C_HandleTypeDef *hi2c)
 
     // Init LCD
     printf("Initializing OLED Screen...\r\n");
+
     status += OLED_WriteCommand(hi2c, 0xAE);   // Display off
+    //initial settings configuration
     status += OLED_WriteCommand(hi2c, 0x20);   // Set Memory Addressing Mode
     status += OLED_WriteCommand(hi2c, 0x10);   // 00,Horizontal Addressing Mode;01,Vertical Addressing Mode;10,Page Addressing Mode (RESET);11,Invalid
+
     status += OLED_WriteCommand(hi2c, 0xB0);   // Set Page Start Address for Page Addressing Mode,0-7
-    status += OLED_WriteCommand(hi2c, 0xC8);   // Set COM Output Scan Direction
+
     status += OLED_WriteCommand(hi2c, 0x00);   // Set low column address
     status += OLED_WriteCommand(hi2c, 0x10);   // Set high column address
-    status += OLED_WriteCommand(hi2c, 0x40);   // Set start line address
-    status += OLED_WriteCommand(hi2c, 0x81);   // set contrast control register
-    status += OLED_WriteCommand(hi2c, 0xFF);
-    status += OLED_WriteCommand(hi2c, 0xA1);   // Set segment re-map 0 to 127
-    status += OLED_WriteCommand(hi2c, 0xA6);   // Set normal display
-
-    status += OLED_WriteCommand(hi2c, 0xA8);   // Set multiplex ratio(1 to 64)
-    status += OLED_WriteCommand(hi2c, OLED_HEIGHT - 1);
-
-    status += OLED_WriteCommand(hi2c, 0xA4);   // 0xa4,Output follows RAM content;0xa5,Output ignores RAM content
-    status += OLED_WriteCommand(hi2c, 0xD3);   // Set display offset
-    status += OLED_WriteCommand(hi2c, 0x00);   // No offset
 
     status += OLED_WriteCommand(hi2c, 0xD5);   // Set display clock divide ratio/oscillator frequency
     status += OLED_WriteCommand(hi2c, 0xF0);   // Set divide ratio
-    status += OLED_WriteCommand(hi2c, 0xD9);   // Set pre-charge period
-    status += OLED_WriteCommand(hi2c, 0x22);
 
+    status += OLED_WriteCommand(hi2c, 0xA8);   // Set multiplex ratio(1 to 64)
+    status += OLED_WriteCommand(hi2c, OLED_HEIGHT - 1); //reset
+
+    status += OLED_WriteCommand(hi2c, 0xD3);   // Set display offset
+    status += OLED_WriteCommand(hi2c, 0x00);   // No offset
+    status += OLED_WriteCommand(hi2c, 0x40);   // Set start line address
+    status += OLED_WriteCommand(hi2c, 0xA1);   // Set segment re-map 0 to 127
+    status += OLED_WriteCommand(hi2c, 0xC8);   // Set COM Output Scan Direction
     status += OLED_WriteCommand(hi2c, 0xDA);   // Set com pins hardware configuration
     status += OLED_WriteCommand(hi2c, OLED_COM_LR_REMAP << 5 | OLED_COM_ALTERNATIVE_PIN_CONFIG << 4 | 0x02);
 
-    status += OLED_WriteCommand(hi2c, 0xDB);   // Set vcomh
-    status += OLED_WriteCommand(hi2c, 0x20);   // 0x20,0.77xVcc
-    status += OLED_WriteCommand(hi2c, 0x8D);   // Set DC-DC enable
-    status += OLED_WriteCommand(hi2c, 0x14);   //
+    status += OLED_WriteCommand(hi2c, 0x81);   // set contrast control register
+    status += OLED_WriteCommand(hi2c, 0xFF);	//next command, dummy byte
+    status += OLED_WriteCommand(hi2c, 0xD9);   // Set pre-charge period
+    status += OLED_WriteCommand(hi2c, 0x22);	//set page start and end address ?????
 
+    status += OLED_WriteCommand(hi2c, 0xDB);   // Set vcomh deselect level
+    status += OLED_WriteCommand(hi2c, 0x20);   // 0x20,0.77xVcc -- reset
+    //set charge pump
+    status += OLED_WriteCommand(hi2c, 0x8D);   // Set DC-DC enable
+    status += OLED_WriteCommand(hi2c, 0x14);   // enable charge pump
+
+    //set entire display on / off
+    status += OLED_WriteCommand(hi2c, 0xA4);   // 0xa4,Output follows RAM content;0xa5,Output ignores RAM content
+    status += OLED_WriteCommand(hi2c, 0xA6);   // Set normal display
+    //clear screen
+    OLED_Fill(Black);
     status += OLED_WriteCommand(hi2c, 0xAF);   // Turn on OLED panel
+
     if (status != 0) {
         return 1;
     }
-
-    // Clear screen
-    OLED_Fill(Black);
 
     // Flush buffer to screen
     OLED_UpdateScreen(hi2c);
