@@ -50,8 +50,9 @@ UART_HandleTypeDef hlpuart1;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
+uint8_t indx = 0;
+uint8_t xbee_byte;
 uint8_t uart_buffer[32];
-uint8_t xbee_buffer[32];
 uint8_t xbee_int_buf[2];
 volatile uint8_t xbee_int_ready = 0;
 uint8_t r = 0;
@@ -98,7 +99,7 @@ void xbee_send(const char* cmd) {
 	HAL_UART_Transmit(&huart1, (uint8_t*)"\r", 1, 100);
 	HAL_Delay(30);
 
-	HAL_UART_Receive(huartx, resp, 3, 1000);
+	HAL_UART_Receive(&huart1, resp, 3, 1000);
 	printf("resp: %s\r", resp);
 }
 
@@ -190,22 +191,27 @@ void xbee_router_setup() {
 }
 
 
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *hsuart) {
-    if (hsuart == &huart1) {
-        xbee_int_ready = 1;
-        printf("UART CONNECTED!");
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+    if (huart == &huart1) {
+    	printf("XBEE RECEIVED!!\n");
+    	printf("%02X ", xbee_byte);
+    	uart_buffer[indx++] = xbee_byte;
+        if (indx == 32) {
+        	xbee_int_ready = 1;
+        	indx = 0;
+        }
     }
     // Restart reception IMMEDIATELY
-    if (HAL_UART_Receive_IT(&huart1, uart_buffer, 32) != HAL_OK) {
+    if (HAL_UART_Receive_IT(&huart1, &xbee_byte, 1) != HAL_OK) {
         printf("Failed to restart UART reception!\n");
     }
 
 }
 
-void HAL_UART_ErrorCallback(UART_HandleTypeDef *hsuart)
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
-    if (hsuart == &huart1) {
-    	HAL_UART_Receive_IT(&huart1, uart_buffer, 32);
+    if (huart == &huart1) {
+    	HAL_UART_Receive_IT(&huart1, &xbee_byte, 1);
     }
 }
 /* USER CODE END 0 */
@@ -243,8 +249,12 @@ int main(void)
   MX_USART1_UART_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
+
+
   	  HAL_Delay(1000);
-   xbee_router_setup();
+//   xbee_router_setup();
+//   HAL_Delay(1000);
+   HAL_UART_Receive_IT(&huart1, &xbee_byte, 1);
    HAL_Delay(1000);
 
    // Init lcd using one of the stm32HAL i2c typedefs
@@ -279,7 +289,7 @@ int main(void)
    HAL_Delay(100);
    OLED_UpdateScreen(&hi2c1);
 
-   HAL_UART_Receive_IT(&huart1, uart_buffer, 32);
+
    HAL_Delay(100);
    HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
   /* USER CODE END 2 */

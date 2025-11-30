@@ -347,8 +347,8 @@ int main(void)
   HAL_Delay(1000);
   xbee_router_setup();
   HAL_Delay(1000);
-  xbee_ir_setup();
-  HAL_Delay(1000);
+//  xbee_ir_setup();
+//  HAL_Delay(1000);
 
   HAL_UART_Receive_IT(&huart5, xbee_int_buf, 2);
 //  HAL_UART_Receive_IT(&huart4, xbee_glass_int_buf, 2);
