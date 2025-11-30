@@ -66,6 +66,7 @@ uint8_t reg = 0x80;
 volatile uint8_t glass_xbee_ready = 0;
 uint8_t temp_send[32];
 uint8_t xbee_glass_int_buf[2];
+uint8_t glass_start_bytes[2] = {0xAA, 0x55};
 
 //for temp tracking
 #define HISTORY_LEN 4
@@ -554,6 +555,7 @@ int main(void)
 			  }
 		  }
 	  }
+	  HAL_UART_Transmit(&huart4, glass_start_bytes, 2, 100);
 	  if (HAL_UART_Transmit(&huart4, temp_send, 32, 100) == HAL_OK) {
 		  printf("[debug] Sent 32 bytes via UART4\n");
 	  //		      HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);  // Blink LED on transmit

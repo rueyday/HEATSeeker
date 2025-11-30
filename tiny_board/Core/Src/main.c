@@ -56,6 +56,12 @@ uint8_t uart_buffer[32];
 uint8_t xbee_int_buf[2];
 volatile uint8_t xbee_int_ready = 0;
 uint8_t r = 0;
+
+enum {
+    FIRST_WAIT,
+	SECOND_WAIT,
+    READ_PAYLOAD
+} xbee_state = FIRST_WAIT;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -193,13 +199,31 @@ void xbee_router_setup() {
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     if (huart == &huart1) {
-    	printf("XBEE RECEIVED!!\n");
-    	printf("%02X ", xbee_byte);
-    	uart_buffer[indx++] = xbee_byte;
-        if (indx == 32) {
-        	xbee_int_ready = 1;
-        	indx = 0;
-        }
+//    	printf("XBEE RECEIVED!! %d\n", indx);
+//    	printf("%02X ", xbee_byte);
+    	switch (xbee_state) {
+    	case FIRST_WAIT:
+    		if (xbee_byte == 0xAA) {   // 헤더 발견!
+				xbee_state = SECOND_WAIT;
+			}
+			break;
+    	case SECOND_WAIT:
+    		if (xbee_byte == 0x55) {
+    			indx = 0;
+    			xbee_state = READ_PAYLOAD;
+    		} else {
+    			xbee_state = FIRST_WAIT;
+    		}
+    		break;
+    	case READ_PAYLOAD:
+			uart_buffer[indx++] = xbee_byte;
+
+			if(indx == 32){
+				xbee_int_ready = 1;
+				xbee_state = FIRST_WAIT;
+			}
+			break;
+    	}
     }
     // Restart reception IMMEDIATELY
     if (HAL_UART_Receive_IT(&huart1, &xbee_byte, 1) != HAL_OK) {
@@ -268,11 +292,11 @@ int main(void)
 
    HAL_Delay(1000);
 
-   // Write data to local screenbuffer
-   OLED_SetCursor(0, 0);
-   OLED_WriteString("Initialization", Font_7x10, White);
-   OLED_SetCursor(0, 10);
-   OLED_WriteString("Done >:)", Font_7x10, White);
+//   // Write data to local screenbuffer
+//   OLED_SetCursor(0, 0);
+//   OLED_WriteString("Initialization", Font_7x10, White);
+//   OLED_SetCursor(0, 10);
+//   OLED_WriteString("Done >:)", Font_7x10, White);
 
 //   OLED_UpdateScreen(&hi2c1);
 //   OLED_SetCursor(0, 36);
@@ -301,10 +325,10 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  OLED_Fill(Black);
 
 	  	 if(xbee_int_ready){
 	  		 xbee_int_ready = 0;
+	  		OLED_Fill(Black);
 	  //	         Print your data
 	  		for (int i = 0; i < 32; i++) {
 	  			uint8_t byte = uart_buffer[i];
