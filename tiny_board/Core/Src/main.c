@@ -298,6 +298,8 @@ int main(void)
 //   OLED_SetCursor(0, 10);
 //   OLED_WriteString("Done >:)", Font_7x10, White);
 
+
+
 //   OLED_UpdateScreen(&hi2c1);
 //   OLED_SetCursor(0, 36);
 //   OLED_WriteString("Recheck", Font_11x18, White);
@@ -359,6 +361,7 @@ int main(void)
 	  				radius2 = 0;
 	  			}
 	  			OLED_Square(col2 * 8 + 8, row2 * 8 + 4, radius2, White);
+//	  			OLED_Fill(White);
 
 
 	  		}
