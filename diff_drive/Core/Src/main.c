@@ -391,24 +391,24 @@ int main(void)
 	  float T_MAX = 32.0f;
 
 	  for (int i = 0; i < 8; i++) {
-		  for (int j = 0; j < 8; j += 2) {
+	      for (int j = 6; j >= 0; j -= 2) {
 
-			  uint16_t raw1 = (buf[i*16 + j*2 + 1] << 8) | buf[i*16 + j*2];
-			  if (raw1 > 2047) raw1 -= 4096;
-			  float t1 = raw1 * 0.25f;
+	          uint16_t raw1 = (buf[i*16 + j*2 + 1] << 8) | buf[i*16 + j*2];
+	          if (raw1 > 2047) raw1 -= 4096;
+	          float t1 = raw1 * 0.25f;
 
-			  if (t1 < T_MIN) t1 = T_MIN;
-			  int p1 = (int)(((t1-T_MIN) / (T_MAX-T_MIN)) * 15.0f);
+	          if (t1 < T_MIN) t1 = T_MIN;
+	          int p1 = (int)(((t1-T_MIN) / (T_MAX-T_MIN)) * 15.0f);
 
-			  uint16_t raw2 = (buf[i*16 + (j+1)*2 + 1] << 8) | buf[i*16 + (j+1)*2];
-			  if (raw2 > 2047) raw2 -= 4096;
-			  float t2 = raw2 * 0.25f;
+	          uint16_t raw2 = (buf[i*16 + (j+1)*2 + 1] << 8) | buf[i*16 + (j+1)*2];
+	          if (raw2 > 2047) raw2 -= 4096;
+	          float t2 = raw2 * 0.25f;
 
-			  if (t2 < T_MIN) t2 = T_MIN;
-			  int p2 = (int)(((t2-T_MIN) / (T_MAX-T_MIN)) * 15.0f);
+	          if (t2 < T_MIN) t2 = T_MIN;
+	          int p2 = (int)(((t2-T_MIN) / (T_MAX-T_MIN)) * 15.0f);
 
-			  temp_send[idx++] = (uint8_t)((p1 << 4) | (p2 & 0x0F));
-		  }
+	          temp_send[idx++] = (uint8_t)((p1 << 4) | (p2 & 0x0F));
+	      }
 	  }
 
 //	  for (uint8_t i = 0; i < 32; i++) {
