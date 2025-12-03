@@ -153,7 +153,7 @@ void xbee_send(const char* cmd, UART_HandleTypeDef *huartx) {
 	uint8_t resp[8];
 	HAL_StatusTypeDef st;
 
-	HAL_UART_Transmit(huartx, (uint8_t)cmd, strlen(cmd), 100);
+	HAL_UART_Transmit(huartx, (uint8_t*)cmd, strlen(cmd), 100);
 	HAL_UART_Transmit(huartx, (uint8_t*)"\r", 1, 100);
 	HAL_Delay(30);
 
@@ -307,6 +307,27 @@ uint8_t getStable(){
 	}
 	return (uint8_t)best_idx;
 }
+float batteryValue(){
+	float R1 = 10000.0;
+	float R2 = 2200.0;
+	float VREF = 5.0;
+	float MAX = 4095.0;
+	float scale = R2/(R1 + R2);
+
+    HAL_ADC_Start(&hadc1);
+    if (HAL_ADC_PollForConversion(&hadc1, 10) != HAL_OK) {
+        HAL_ADC_Stop(&hadc1);
+        return -1.0f; //error
+    }
+
+    uint32_t raw = HAL_ADC_GetValue(&hadc1);
+
+    //vadc = raw / 4096 * vref
+    float VADC = (raw / MAX) * VREF;
+    float VBAT = VADC / scale;
+
+    return VBAT;
+}
 /* USER CODE END 0 */
 
 /**
@@ -367,6 +388,9 @@ int main(void)
   led_Init(&hspi1);
   led_SetIllum(&hspi1, 0x01);
   led_setColor(&hspi1, 0x00, 0x00, 0x10);
+
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -384,6 +408,9 @@ int main(void)
 //	  HAL_Delay(200);
 
 //	  HAL_Delay(200);
+	  float batt = batteryValue();
+	  printf("battery value: %f\r\n", batt);
+
 	  uint8_t temp_send[32];
 	  HAL_I2C_Master_Transmit(&hi2c1, SAD_IRCAM_W, &reg, 1, 1000);
 	  HAL_I2C_Master_Receive(&hi2c1, SAD_IRCAM_R, buf, 128, 1000);
@@ -1170,6 +1197,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.Alternate = GPIO_AF2_TIM4;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+
+  /* Configure PC0 as analog for ADC */
+  GPIO_InitStruct.Pin  = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG_ADC_CONTROL;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
