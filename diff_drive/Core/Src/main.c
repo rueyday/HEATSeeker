@@ -310,17 +310,23 @@ uint8_t getStable(){
 float batteryValue(){
 	float R1 = 10000.0;
 	float R2 = 2200.0;
-	float VREF = 5.0;
+	float VREF = 3.3;
 	float MAX = 4095.0;
 	float scale = R2/(R1 + R2);
 
     HAL_ADC_Start(&hadc1);
+
     if (HAL_ADC_PollForConversion(&hadc1, 10) != HAL_OK) {
         HAL_ADC_Stop(&hadc1);
         return -1.0f; //error
     }
 
-    uint32_t raw = HAL_ADC_GetValue(&hadc1);
+    float sum = 0;
+    for (int i = 0; i < 500; i++){
+    	sum += HAL_ADC_GetValue(&hadc1);
+    }
+    uint32_t raw = sum / 500;
+    printf("ADC raw = %lu\r\n", raw);
 
     //vadc = raw / 4096 * vref
     float VADC = (raw / MAX) * VREF;
@@ -328,6 +334,71 @@ float batteryValue(){
 
     return VBAT;
 }
+uint8_t batteryPercent(float vbat){
+//	float sum = 0;
+//	if (VBAT > 9.0){
+//		for (int i = 0; i < 500; i++){
+//			sum += 27.78 * VBAT - 250.0;
+//		}
+//		return sum / 500.0; //avg 500 samples
+//
+//	}
+//	else{
+//		return 0;
+	const float V_EMPTY = 9.0f;
+	    const float V_FULL  = 12.6f;
+	    if (vbat <= V_EMPTY) return 0;
+	    if (vbat >= V_FULL)  return 100;
+
+	    float pct_f = (vbat - V_EMPTY) * 100.0f / (V_FULL - V_EMPTY);
+	    if (pct_f < 0)   pct_f = 0;
+	    if (pct_f > 100) pct_f = 100;
+
+	    uint8_t pct = (uint8_t)(pct_f + 0.5f);
+
+	    static uint8_t level = 0;
+	    static uint8_t initialized = 0;
+
+	    // thresholds in % for each step
+	    // going UP:   15, 35, 55, 75, 95
+	    // going DOWN:  0, 25, 45, 65, 85
+	    static const uint8_t up[]   = {15, 35, 55, 75, 95};
+	    static const uint8_t down[] = { 0, 25, 45, 65, 85};
+
+	    if (!initialized) {
+	        if      (pct >= 90) level = 5;
+	        else if (pct >= 70) level = 4;
+	        else if (pct >= 50) level = 3;
+	        else if (pct >= 30) level = 2;
+	        else if (pct >= 10) level = 1;
+	        else                level = 0;
+	        initialized = 1;
+	    } else {
+	        if (level < 5 && pct > up[level]) {
+	            level++;
+	        } else if (level > 0 && pct < down[level - 1]) {
+	            level--;
+	        }
+    }
+
+    switch(level){
+		case 0:
+			return 0;
+		case 1:
+			return 20;
+		case 2:
+			return 40;
+		case 3:
+			return 60;
+		case 4:
+			return 80;
+		case 5:
+			return 100;
+		default:
+			return 0;
+    	}
+	}
+
 /* USER CODE END 0 */
 
 /**
@@ -409,7 +480,9 @@ int main(void)
 
 //	  HAL_Delay(200);
 	  float batt = batteryValue();
+	  float percent = batteryPercent(batt);
 	  printf("battery value: %f\r\n", batt);
+	  printf("battery percent: %f\r\n", percent);
 
 	  uint8_t temp_send[32];
 	  HAL_I2C_Master_Transmit(&hi2c1, SAD_IRCAM_W, &reg, 1, 1000);
