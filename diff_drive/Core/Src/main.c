@@ -153,7 +153,7 @@ void xbee_send(const char* cmd, UART_HandleTypeDef *huartx) {
 	uint8_t resp[8];
 	HAL_StatusTypeDef st;
 
-	HAL_UART_Transmit(huartx, (uint8_t)cmd, strlen(cmd), 100);
+	HAL_UART_Transmit(huartx, (uint8_t*)cmd, strlen(cmd), 100);
 	HAL_UART_Transmit(huartx, (uint8_t*)"\r", 1, 100);
 	HAL_Delay(30);
 
@@ -307,6 +307,98 @@ uint8_t getStable(){
 	}
 	return (uint8_t)best_idx;
 }
+float batteryValue(){
+	float R1 = 10000.0;
+	float R2 = 2200.0;
+	float VREF = 3.3;
+	float MAX = 4095.0;
+	float scale = R2/(R1 + R2);
+
+    HAL_ADC_Start(&hadc1);
+
+    if (HAL_ADC_PollForConversion(&hadc1, 10) != HAL_OK) {
+        HAL_ADC_Stop(&hadc1);
+        return -1.0f; //error
+    }
+
+    float sum = 0;
+    for (int i = 0; i < 500; i++){
+    	sum += HAL_ADC_GetValue(&hadc1);
+    }
+    uint32_t raw = sum / 500;
+    printf("ADC raw = %lu\r\n", raw);
+
+    //vadc = raw / 4096 * vref
+    float VADC = (raw / MAX) * VREF;
+    float VBAT = VADC / scale;
+
+    return VBAT;
+}
+uint8_t batteryPercent(float vbat){
+//	float sum = 0;
+//	if (VBAT > 9.0){
+//		for (int i = 0; i < 500; i++){
+//			sum += 27.78 * VBAT - 250.0;
+//		}
+//		return sum / 500.0; //avg 500 samples
+//
+//	}
+//	else{
+//		return 0;
+	const float V_EMPTY = 9.0f;
+	    const float V_FULL  = 12.6f;
+	    if (vbat <= V_EMPTY) return 0;
+	    if (vbat >= V_FULL)  return 100;
+
+	    float pct_f = (vbat - V_EMPTY) * 100.0f / (V_FULL - V_EMPTY);
+	    if (pct_f < 0)   pct_f = 0;
+	    if (pct_f > 100) pct_f = 100;
+
+	    uint8_t pct = (uint8_t)(pct_f + 0.5f);
+
+	    static uint8_t level = 0;
+	    static uint8_t initialized = 0;
+
+	    // thresholds in % for each step
+	    // going UP:   15, 35, 55, 75, 95
+	    // going DOWN:  0, 25, 45, 65, 85
+	    static const uint8_t up[]   = {15, 35, 55, 75, 95};
+	    static const uint8_t down[] = { 0, 25, 45, 65, 85};
+
+	    if (!initialized) {
+	        if      (pct >= 90) level = 5;
+	        else if (pct >= 70) level = 4;
+	        else if (pct >= 50) level = 3;
+	        else if (pct >= 30) level = 2;
+	        else if (pct >= 10) level = 1;
+	        else                level = 0;
+	        initialized = 1;
+	    } else {
+	        if (level < 5 && pct > up[level]) {
+	            level++;
+	        } else if (level > 0 && pct < down[level - 1]) {
+	            level--;
+	        }
+    }
+
+    switch(level){
+		case 0:
+			return 0;
+		case 1:
+			return 20;
+		case 2:
+			return 40;
+		case 3:
+			return 60;
+		case 4:
+			return 80;
+		case 5:
+			return 100;
+		default:
+			return 0;
+    	}
+	}
+
 /* USER CODE END 0 */
 
 /**
@@ -368,36 +460,8 @@ int main(void)
   led_SetIllum(&hspi1, 0x01);
   led_setColor(&hspi1, 0x00, 0x00, 0x10);
 
-  float batteryValue(void) {
-      const float R1 = 10000.0f;   // top resistor (to battery +)
-      const float R2 = 2200.0f;    // bottom resistor (to GND)
-      const float VREF = 3.3f;     // ADC reference (VDDA)
-      const float ADC_MAX = 4095.0f;
-      const float scale = R2 / (R1 + R2);
 
-      const int N_SAMPLES = 8;     // average to reduce noise
-      uint32_t sum = 0;
 
-      for (int i = 0; i < N_SAMPLES; ++i) {
-          HAL_ADC_Start(&hadc1);
-
-          if (HAL_ADC_PollForConversion(&hadc1, 10) != HAL_OK) {
-              HAL_ADC_Stop(&hadc1);
-              return -1.0f; // error
-          }
-
-          uint32_t raw = HAL_ADC_GetValue(&hadc1);
-          HAL_ADC_Stop(&hadc1);
-
-          sum += raw;
-      }
-
-      float avg_raw = (float)sum / (float)N_SAMPLES;
-      float v_adc = (avg_raw / ADC_MAX) * VREF;   // measured voltage at ADC pin
-      float v_bat = v_adc / scale;                // undo divider
-
-      return v_bat;   // voltage in volts
-  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -415,6 +479,11 @@ int main(void)
 //	  HAL_Delay(200);
 
 //	  HAL_Delay(200);
+	  float batt = batteryValue();
+	  float percent = batteryPercent(batt);
+	  printf("battery value: %f\r\n", batt);
+	  printf("battery percent: %f\r\n", percent);
+
 	  uint8_t temp_send[32];
 	  HAL_I2C_Master_Transmit(&hi2c1, SAD_IRCAM_W, &reg, 1, 1000);
 	  HAL_I2C_Master_Receive(&hi2c1, SAD_IRCAM_R, buf, 128, 1000);
@@ -1204,6 +1273,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.Alternate = GPIO_AF2_TIM4;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+
+  /* Configure PC0 as analog for ADC */
+  GPIO_InitStruct.Pin  = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG_ADC_CONTROL;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
   /* Configure PC0 as analog for ADC */
