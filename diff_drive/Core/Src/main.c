@@ -525,6 +525,11 @@ int main(void)
 	  // In transmitter, after sending:
 
 //	  HAL_UART_Receive(&huart5, buf, 2, 200);
+	  float batt = batteryValue();
+	  if(batt != 0.0){
+		  printf("[debug] battery value: %f\r\n", batt);
+	  }
+
 	  if (xbee_int_ready){
 		  command = xbee_int_buf[0];
 		  if(command >> 7){
@@ -550,22 +555,23 @@ int main(void)
 			  command = (command >>3);
 			  uint8_t left_command = command & 0b11;
 			  int left_dir = command & 0b100;
+
 			  printf("left: %d, right: %d\n\r", left_command, right_command);
 
 			  uint32_t right_pwm = (50000*(uint32_t)right_command)/3+70000;
-			  if(right_dir){
-				  motor_right_forward(right_pwm);
-			  }else if(left_command == 0){
+			  if(right_command == 0){
 				  motor_right_stop();
+			  }else if(right_dir){
+				  motor_right_forward(right_pwm);
 			  } else {
 				  motor_right_reverse(right_pwm);
 			  }
 
 			  uint32_t left_pwm = (50000*left_command)/3+70000;
-			  if(left_dir){
-				  motor_left_forward(left_pwm);
-			  }else if(left_command == 0){
+			  if(left_command == 0){
 				  motor_left_stop();
+			  }else if(left_dir){
+				  motor_left_forward(left_pwm);
 			  } else {
 				  motor_left_reverse(left_pwm);
 			  }
@@ -573,7 +579,7 @@ int main(void)
 	  }
 
 
-	  if (control_mode == MODE_IR_ONLY && power){
+	  if ((control_mode == MODE_IR_ONLY) && power){
 		  led_setColor(&hspi1, 0xFF, 0x00, 0x00);
 		  uint8_t frame_max_val;
 		  uint8_t frame_max_idx = find_brightest_pixel(temp_send, &frame_max_val);
@@ -660,10 +666,7 @@ int main(void)
 		  }
 	  }
 	  HAL_UART_Transmit(&huart4, glass_start_bytes, 2, 100);
-	  if (HAL_UART_Transmit(&huart4, temp_send, 32, 100) == HAL_OK) {
-		  printf("[debug] Sent 32 bytes via UART4\n");
-	  //		      HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);  // Blink LED on transmit
-	  } else {
+	  if (!HAL_UART_Transmit(&huart4, temp_send, 32, 100) == HAL_OK) {
 		  printf("[debug] UART4 transmit failed\n");
 	  }
 //	  HAL_Delay(30);
@@ -1279,7 +1282,11 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
-
+  /* Configure PC0 as analog for ADC */
+	GPIO_InitStruct.Pin  = GPIO_PIN_0;
+	GPIO_InitStruct.Mode = GPIO_MODE_ANALOG_ADC_CONTROL;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
   /* USER CODE END MX_GPIO_Init_2 */
 }
 

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import zoom
 import re
 
-PORT = "/dev/cu.usbmodem1103"
+PORT = "/dev/cu.usbmodem11103"
 BAUD = 115200
 
 ser = serial.Serial(PORT, BAUD, timeout=0.1)
