@@ -436,20 +436,23 @@ int main(void)
 
 
   HAL_Delay(1000);
-  //   xbee_router_setup();
+     xbee_router_setup();
   //   HAL_Delay(1000);
    HAL_UART_Receive_IT(&huart1, &xbee_byte, 1);
    HAL_Delay(1000);
 
    // Init lcd using one of the stm32HAL i2c typedefs
-   if (OLED_Init(&hi2c1) != 0) {
-     Error_Handler();
-   }
+   printf("debug\n");
+//   if (OLED_Init(&hi2c1) != 0) {
+//     Error_Handler();
+//   }
+//
    HAL_Delay(100);
 
-   OLED_Fill(Black);
-   OLED_UpdateScreen(&hi2c1);
+//   OLED_Fill(Black);
+//   OLED_UpdateScreen(&hi2c1);
    ST7735_Init(&hspi1);
+   printf("debug2\n");
 
    HAL_Delay(1000);
 
@@ -480,6 +483,7 @@ int main(void)
    HAL_Delay(100);
    HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
    int k = 0;
+   printf("debug2\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -489,7 +493,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-//	  ST7735_FillScreen(RED);
+	  ST7735_FillScreen(RED);
 //	  HAL_Delay(1000);
 //	  ST7735_FillScreen(GREEN);
 //	  HAL_Delay(1000);
@@ -535,7 +539,7 @@ int main(void)
 //
 //	  		}
 //	  		OLED_UpdateScreen(&hi2c1);
-//	  		printf("-----------\n\r");
+	  		printf("-----------\n\r");
 
 //	  		  MULTI-COLOR DISPLAY
 	  		for (int i = 0; i < 8; i++) {
