@@ -437,20 +437,30 @@ int main(void)
 
 
   HAL_Delay(1000);
-  //   xbee_router_setup();
+     xbee_router_setup();
   //   HAL_Delay(1000);
    HAL_UART_Receive_IT(&huart1, &xbee_byte, 1);
    HAL_Delay(1000);
 
    // Init lcd using one of the stm32HAL i2c typedefs
+<<<<<<< HEAD
 //   if (OLED_Init(&hi2c1) != 0) {
 //     Error_Handler();
 //   }
 //   HAL_Delay(100);
+=======
+   printf("debug\n");
+//   if (OLED_Init(&hi2c1) != 0) {
+//     Error_Handler();
+//   }
+//
+   HAL_Delay(100);
+>>>>>>> fb3d9624b29be7933b04a3d876f5306cf8b010ed
 
 //   OLED_Fill(Black);
 //   OLED_UpdateScreen(&hi2c1);
    ST7735_Init(&hspi1);
+   printf("debug2\n");
 
    HAL_Delay(1000);
 
@@ -479,8 +489,14 @@ int main(void)
 
 
    HAL_Delay(100);
+<<<<<<< HEAD
 //   HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
 //   int k = 0;
+=======
+   HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
+   int k = 0;
+   printf("debug2\n");
+>>>>>>> fb3d9624b29be7933b04a3d876f5306cf8b010ed
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -490,9 +506,59 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+<<<<<<< HEAD
 
 	  	 if(xbee_int_ready){
 	  		 xbee_int_ready = 0;
+=======
+	  ST7735_FillScreen(RED);
+//	  HAL_Delay(1000);
+//	  ST7735_FillScreen(GREEN);
+//	  HAL_Delay(1000);
+//	  ST7735_FillScreen(BLUE);
+//	  HAL_Delay(1000);
+//
+	  	 if(xbee_int_ready){
+	  		 xbee_int_ready = 0;
+//	  		OLED_Fill(Black);
+//	  //	         Print your data
+//	  		for (int i = 0; i < 32; i++) {
+//	  			uint8_t byte = uart_buffer[i];
+//	  			int val1 = (byte >> 4) & 0x0F;  // Upper 4 bits
+//	  			int val2 = byte & 0x0F;         // Lower 4 bits
+////
+//	  			printf("%d %d  ", (byte >> 4) & 0x0F, byte & 0x0F);
+//	  			if (i % 4 == 3) printf("\n\r");
+//
+//
+//	  			// Convert to 8x8 grid positions
+//	  			int grid_index = i * 2;         // 0-63 (64 total values)
+//	  			int row = grid_index / 8;       // 0-7 (8 rows)
+//	  			int col = grid_index % 8;       // 0-7 (8 columns)
+//
+//	  			// First value
+//	  			int radius1 = val1 / 4 + 1;     // Scale 0-15 to radius 1-8
+//	  			if(radius1 < 3){
+//	  				radius1 = 0;
+//	  			}
+//	  			OLED_Square(col * 8 + 8, row * 8 + 4, radius1, White);
+//
+//	  			// Second value (next column)
+//	  			int grid_index2 = grid_index + 1;
+//	  			int row2 = grid_index2 / 8;
+//	  			int col2 = grid_index2 % 8;
+//	  			int radius2 = val2 / 4 + 1;
+//	  			if(radius2 < 3){
+//	  				radius2 = 0;
+//	  			}
+//	  			OLED_Square(col2 * 8 + 8, row2 * 8 + 4, radius2, White);
+////	  			OLED_Fill(White);
+//
+//
+//	  		}
+//	  		OLED_UpdateScreen(&hi2c1);
+	  		printf("-----------\n\r");
+>>>>>>> fb3d9624b29be7933b04a3d876f5306cf8b010ed
 
 	  		for (int i = 0; i < 32; i++) {
 

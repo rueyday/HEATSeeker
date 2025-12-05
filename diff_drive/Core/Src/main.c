@@ -42,6 +42,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+
 I2C_HandleTypeDef hi2c1;
 
 UART_HandleTypeDef hlpuart1;
@@ -116,6 +118,7 @@ static void MX_LPUART1_UART_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_UART4_Init(void);
 static void MX_SPI1_Init(void);
+static void MX_ADC1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -150,7 +153,7 @@ void xbee_send(const char* cmd, UART_HandleTypeDef *huartx) {
 	uint8_t resp[8];
 	HAL_StatusTypeDef st;
 
-	HAL_UART_Transmit(huartx, (uint8_t)cmd, strlen(cmd), 100);
+	HAL_UART_Transmit(huartx, (uint8_t*)cmd, strlen(cmd), 100);
 	HAL_UART_Transmit(huartx, (uint8_t*)"\r", 1, 100);
 	HAL_Delay(30);
 
@@ -304,6 +307,98 @@ uint8_t getStable(){
 	}
 	return (uint8_t)best_idx;
 }
+float batteryValue(){
+	float R1 = 10000.0;
+	float R2 = 2200.0;
+	float VREF = 3.3;
+	float MAX = 4095.0;
+	float scale = R2/(R1 + R2);
+
+    HAL_ADC_Start(&hadc1);
+
+    if (HAL_ADC_PollForConversion(&hadc1, 10) != HAL_OK) {
+        HAL_ADC_Stop(&hadc1);
+        return -1.0f; //error
+    }
+
+    float sum = 0;
+    for (int i = 0; i < 500; i++){
+    	sum += HAL_ADC_GetValue(&hadc1);
+    }
+    uint32_t raw = sum / 500;
+    printf("ADC raw = %lu\r\n", raw);
+
+    //vadc = raw / 4096 * vref
+    float VADC = (raw / MAX) * VREF;
+    float VBAT = VADC / scale;
+
+    return VBAT;
+}
+uint8_t batteryPercent(float vbat){
+//	float sum = 0;
+//	if (VBAT > 9.0){
+//		for (int i = 0; i < 500; i++){
+//			sum += 27.78 * VBAT - 250.0;
+//		}
+//		return sum / 500.0; //avg 500 samples
+//
+//	}
+//	else{
+//		return 0;
+	const float V_EMPTY = 9.0f;
+	    const float V_FULL  = 12.6f;
+	    if (vbat <= V_EMPTY) return 0;
+	    if (vbat >= V_FULL)  return 100;
+
+	    float pct_f = (vbat - V_EMPTY) * 100.0f / (V_FULL - V_EMPTY);
+	    if (pct_f < 0)   pct_f = 0;
+	    if (pct_f > 100) pct_f = 100;
+
+	    uint8_t pct = (uint8_t)(pct_f + 0.5f);
+
+	    static uint8_t level = 0;
+	    static uint8_t initialized = 0;
+
+	    // thresholds in % for each step
+	    // going UP:   15, 35, 55, 75, 95
+	    // going DOWN:  0, 25, 45, 65, 85
+	    static const uint8_t up[]   = {15, 35, 55, 75, 95};
+	    static const uint8_t down[] = { 0, 25, 45, 65, 85};
+
+	    if (!initialized) {
+	        if      (pct >= 90) level = 5;
+	        else if (pct >= 70) level = 4;
+	        else if (pct >= 50) level = 3;
+	        else if (pct >= 30) level = 2;
+	        else if (pct >= 10) level = 1;
+	        else                level = 0;
+	        initialized = 1;
+	    } else {
+	        if (level < 5 && pct > up[level]) {
+	            level++;
+	        } else if (level > 0 && pct < down[level - 1]) {
+	            level--;
+	        }
+    }
+
+    switch(level){
+		case 0:
+			return 0;
+		case 1:
+			return 20;
+		case 2:
+			return 40;
+		case 3:
+			return 60;
+		case 4:
+			return 80;
+		case 5:
+			return 100;
+		default:
+			return 0;
+    	}
+	}
+
 /* USER CODE END 0 */
 
 /**
@@ -341,6 +436,7 @@ int main(void)
   MX_I2C1_Init();
   MX_UART4_Init();
   MX_SPI1_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
   motors_gpio_init();
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
@@ -363,6 +459,9 @@ int main(void)
   led_Init(&hspi1);
   led_SetIllum(&hspi1, 0x01);
   led_setColor(&hspi1, 0x00, 0x00, 0x10);
+
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -380,6 +479,11 @@ int main(void)
 //	  HAL_Delay(200);
 
 //	  HAL_Delay(200);
+	  float batt = batteryValue();
+	  float percent = batteryPercent(batt);
+	  printf("battery value: %f\r\n", batt);
+	  printf("battery percent: %f\r\n", percent);
+
 	  uint8_t temp_send[32];
 	  HAL_I2C_Master_Transmit(&hi2c1, SAD_IRCAM_W, &reg, 1, 1000);
 	  HAL_I2C_Master_Receive(&hi2c1, SAD_IRCAM_R, buf, 128, 1000);
@@ -421,6 +525,11 @@ int main(void)
 	  // In transmitter, after sending:
 
 //	  HAL_UART_Receive(&huart5, buf, 2, 200);
+	  float batt = batteryValue();
+	  if(batt != 0.0){
+		  printf("[debug] battery value: %f\r\n", batt);
+	  }
+
 	  if (xbee_int_ready){
 		  command = xbee_int_buf[0];
 		  if(command >> 7){
@@ -446,22 +555,23 @@ int main(void)
 			  command = (command >>3);
 			  uint8_t left_command = command & 0b11;
 			  int left_dir = command & 0b100;
+
 			  printf("left: %d, right: %d\n\r", left_command, right_command);
 
 			  uint32_t right_pwm = (50000*(uint32_t)right_command)/3+70000;
-			  if(right_dir){
-				  motor_right_forward(right_pwm);
-			  }else if(left_command == 0){
+			  if(right_command == 0){
 				  motor_right_stop();
+			  }else if(right_dir){
+				  motor_right_forward(right_pwm);
 			  } else {
 				  motor_right_reverse(right_pwm);
 			  }
 
 			  uint32_t left_pwm = (50000*left_command)/3+70000;
-			  if(left_dir){
-				  motor_left_forward(left_pwm);
-			  }else if(left_command == 0){
+			  if(left_command == 0){
 				  motor_left_stop();
+			  }else if(left_dir){
+				  motor_left_forward(left_pwm);
 			  } else {
 				  motor_left_reverse(left_pwm);
 			  }
@@ -469,7 +579,7 @@ int main(void)
 	  }
 
 
-	  if (control_mode == MODE_IR_ONLY && power){
+	  if ((control_mode == MODE_IR_ONLY) && power){
 		  led_setColor(&hspi1, 0xFF, 0x00, 0x00);
 		  uint8_t frame_max_val;
 		  uint8_t frame_max_idx = find_brightest_pixel(temp_send, &frame_max_val);
@@ -556,10 +666,7 @@ int main(void)
 		  }
 	  }
 	  HAL_UART_Transmit(&huart4, glass_start_bytes, 2, 100);
-	  if (HAL_UART_Transmit(&huart4, temp_send, 32, 100) == HAL_OK) {
-		  printf("[debug] Sent 32 bytes via UART4\n");
-	  //		      HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);  // Blink LED on transmit
-	  } else {
+	  if (!HAL_UART_Transmit(&huart4, temp_send, 32, 100) == HAL_OK) {
 		  printf("[debug] UART4 transmit failed\n");
 	  }
 //	  HAL_Delay(30);
@@ -589,7 +696,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = 0;
-  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_10;
+  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -605,10 +712,68 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+
+  /** Common config
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  hadc1.Init.LowPowerAutoWait = DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.DMAContinuousRequests = DISABLE;
+  hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
+  hadc1.Init.OversamplingMode = DISABLE;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_2CYCLES_5;
+  sConfig.SingleDiff = ADC_SINGLE_ENDED;
+  sConfig.OffsetNumber = ADC_OFFSET_NONE;
+  sConfig.Offset = 0;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
 }
 
 /**
@@ -627,7 +792,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x00B07CB4;
+  hi2c1.Init.Timing = 0x00100D14;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -962,26 +1127,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF13_SAI1;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PC0 PC1 PC2 PC3
-                           PC4 PC5 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3
-                          |GPIO_PIN_4|GPIO_PIN_5;
-  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG_ADC_CONTROL;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
   /*Configure GPIO pins : PA2 PA3 */
   GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_3;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PB1 */
-  GPIO_InitStruct.Pin = GPIO_PIN_1;
-  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG_ADC_CONTROL;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PB2 PB6 */
   GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_6;
@@ -1123,8 +1274,19 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF2_TIM4;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-  /* USER CODE BEGIN MX_GPIO_Init_2 */
 
+  /* Configure PC0 as analog for ADC */
+  GPIO_InitStruct.Pin  = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG_ADC_CONTROL;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /* USER CODE BEGIN MX_GPIO_Init_2 */
+  /* Configure PC0 as analog for ADC */
+	GPIO_InitStruct.Pin  = GPIO_PIN_0;
+	GPIO_InitStruct.Mode = GPIO_MODE_ANALOG_ADC_CONTROL;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
   /* USER CODE END MX_GPIO_Init_2 */
 }
 
