@@ -299,68 +299,68 @@ static const uint16_t heatmap_rgb[16] = {
 };
 
 
-//void interpolate8x8_to_32x32(void)
-//{
-//    for (int y = 0; y < 32; y++) {
-//        float gy = ((float)y) / 4.0f;   // 32/8 = scale factor 4
-//        int y0 = (int)gy;
-//        float dy = gy - y0;
-//        int y1 = (y0 < 7) ? y0 + 1 : y0;
-//
-//        for (int x = 0; x < 32; x++) {
-//            float gx = ((float)x) / 4.0f;
-//            int x0 = (int)gx;
-//            float dx = gx - x0;
-//            int x1 = (x0 < 7) ? x0 + 1 : x0;
-//
-//            float v00 = raw_frame[y0][x0];
-//            float v01 = raw_frame[y0][x1];
-//            float v10 = raw_frame[y1][x0];
-//            float v11 = raw_frame[y1][x1];
-//
-//            float v0 = v00 + dx * (v01 - v00);
-//            float v1 = v10 + dx * (v11 - v10);
-//            uint8_t v = (uint8_t)(v0 + dy * (v1 - v0) + 0.5f);
-//
-//            if (v != image_frame[y][x]) {
-//                draw_queue[y][x] = true;
-//            } else {
-//                draw_queue[y][x] = false;
-//            }
-//        }
-//    }
-//}
-//void interpolate8x8_to_40x40(void)
-//{
-//    for (int y = 0; y < 40; y++) {
-//        float gy = ((float)y) / 5.0f;   // scale factor 40/8 = 5
-//        int y0 = (int)gy;
-//        float dy = gy - y0;
-//        int y1 = (y0 < 7) ? y0 + 1 : y0;
-//
-//        for (int x = 0; x < 40; x++) {
-//            float gx = ((float)x) / 5.0f;
-//            int x0 = (int)gx;
-//            float dx = gx - x0;
-//            int x1 = (x0 < 7) ? x0 + 1 : x0;
-//
-//            float v00 = raw_frame[y0][x0];
-//            float v01 = raw_frame[y0][x1];
-//            float v10 = raw_frame[y1][x0];
-//            float v11 = raw_frame[y1][x1];
-//
-//            float v0 = v00 + dx * (v01 - v00);
-//            float v1 = v10 + dx * (v11 - v10);
-//            uint8_t v = (uint8_t)(v0 + dy * (v1 - v0) + 0.5f);
-//
-//            if (v != image_frame[y][x]) {
-//                draw_queue[y][x] = true;
-//            } else {
-//                draw_queue[y][x] = false;
-//            }
-//        }
-//    }
-//}
+void interpolate8x8_to_32x32(void)
+{
+    for (int y = 0; y < 32; y++) {
+        float gy = ((float)y) / 4.0f;   // 32/8 = scale factor 4
+        int y0 = (int)gy;
+        float dy = gy - y0;
+        int y1 = (y0 < 7) ? y0 + 1 : y0;
+
+        for (int x = 0; x < 32; x++) {
+            float gx = ((float)x) / 4.0f;
+            int x0 = (int)gx;
+            float dx = gx - x0;
+            int x1 = (x0 < 7) ? x0 + 1 : x0;
+
+            float v00 = raw_frame[y0][x0];
+            float v01 = raw_frame[y0][x1];
+            float v10 = raw_frame[y1][x0];
+            float v11 = raw_frame[y1][x1];
+
+            float v0 = v00 + dx * (v01 - v00);
+            float v1 = v10 + dx * (v11 - v10);
+            uint8_t v = (uint8_t)(v0 + dy * (v1 - v0) + 0.5f);
+
+            if (v != image_frame[y][x]) {
+                draw_queue[y][x] = true;
+            } else {
+                draw_queue[y][x] = false;
+            }
+        }
+    }
+}
+void interpolate8x8_to_40x40(void)
+{
+    for (int y = 0; y < 40; y++) {
+        float gy = ((float)y) / 5.0f;   // scale factor 40/8 = 5
+        int y0 = (int)gy;
+        float dy = gy - y0;
+        int y1 = (y0 < 7) ? y0 + 1 : y0;
+
+        for (int x = 0; x < 40; x++) {
+            float gx = ((float)x) / 5.0f;
+            int x0 = (int)gx;
+            float dx = gx - x0;
+            int x1 = (x0 < 7) ? x0 + 1 : x0;
+
+            float v00 = raw_frame[y0][x0];
+            float v01 = raw_frame[y0][x1];
+            float v10 = raw_frame[y1][x0];
+            float v11 = raw_frame[y1][x1];
+
+            float v0 = v00 + dx * (v01 - v00);
+            float v1 = v10 + dx * (v11 - v10);
+            uint8_t v = (uint8_t)(v0 + dy * (v1 - v0) + 0.5f);
+
+            if (v != image_frame[y][x]) {
+                draw_queue[y][x] = true;
+            } else {
+                draw_queue[y][x] = false;
+            }
+        }
+    }
+}
 void ST7735_DrawBlock(int x, int y, int size, uint16_t color)
 {
   for (int j = 0; j < size; j++) {
@@ -437,66 +437,13 @@ int main(void)
 
 
   HAL_Delay(1000);
-     xbee_router_setup();
-  //   HAL_Delay(1000);
    HAL_UART_Receive_IT(&huart1, &xbee_byte, 1);
    HAL_Delay(1000);
 
-   // Init lcd using one of the stm32HAL i2c typedefs
-<<<<<<< HEAD
-//   if (OLED_Init(&hi2c1) != 0) {
-//     Error_Handler();
-//   }
-//   HAL_Delay(100);
-=======
-   printf("debug\n");
-//   if (OLED_Init(&hi2c1) != 0) {
-//     Error_Handler();
-//   }
-//
-   HAL_Delay(100);
->>>>>>> fb3d9624b29be7933b04a3d876f5306cf8b010ed
-
-//   OLED_Fill(Black);
-//   OLED_UpdateScreen(&hi2c1);
    ST7735_Init(&hspi1);
-   printf("debug2\n");
 
    HAL_Delay(1000);
 
-   // Write data to local screenbuffer
-//   OLED_SetCursor(0, 0);
-//   OLED_WriteString("Initialization", Font_7x10, White);
-//   OLED_SetCursor(0, 10);
-//   OLED_WriteString("Done >:)", Font_7x10, White);
-
-
-
-  //   OLED_UpdateScreen(&hi2c1);
-  //   OLED_SetCursor(0, 36);
-  //   OLED_WriteString("Recheck", Font_11x18, White);
-  //
-  //   // Draw rectangle on screen
-  //   for (uint8_t i=0; i<28; i++) {
-  //       for (uint8_t j=0; j<64; j++) {
-  //           OLED_DrawPixel(100+i, 0+j, White);
-  //       }
-  //   }
-
-   // Copy all data from local screenbuffer to the screen
-//   HAL_Delay(100);
-//   OLED_UpdateScreen(&hi2c1);
-
-
-   HAL_Delay(100);
-<<<<<<< HEAD
-//   HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
-//   int k = 0;
-=======
-   HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
-   int k = 0;
-   printf("debug2\n");
->>>>>>> fb3d9624b29be7933b04a3d876f5306cf8b010ed
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -506,59 +453,9 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-<<<<<<< HEAD
 
 	  	 if(xbee_int_ready){
 	  		 xbee_int_ready = 0;
-=======
-	  ST7735_FillScreen(RED);
-//	  HAL_Delay(1000);
-//	  ST7735_FillScreen(GREEN);
-//	  HAL_Delay(1000);
-//	  ST7735_FillScreen(BLUE);
-//	  HAL_Delay(1000);
-//
-	  	 if(xbee_int_ready){
-	  		 xbee_int_ready = 0;
-//	  		OLED_Fill(Black);
-//	  //	         Print your data
-//	  		for (int i = 0; i < 32; i++) {
-//	  			uint8_t byte = uart_buffer[i];
-//	  			int val1 = (byte >> 4) & 0x0F;  // Upper 4 bits
-//	  			int val2 = byte & 0x0F;         // Lower 4 bits
-////
-//	  			printf("%d %d  ", (byte >> 4) & 0x0F, byte & 0x0F);
-//	  			if (i % 4 == 3) printf("\n\r");
-//
-//
-//	  			// Convert to 8x8 grid positions
-//	  			int grid_index = i * 2;         // 0-63 (64 total values)
-//	  			int row = grid_index / 8;       // 0-7 (8 rows)
-//	  			int col = grid_index % 8;       // 0-7 (8 columns)
-//
-//	  			// First value
-//	  			int radius1 = val1 / 4 + 1;     // Scale 0-15 to radius 1-8
-//	  			if(radius1 < 3){
-//	  				radius1 = 0;
-//	  			}
-//	  			OLED_Square(col * 8 + 8, row * 8 + 4, radius1, White);
-//
-//	  			// Second value (next column)
-//	  			int grid_index2 = grid_index + 1;
-//	  			int row2 = grid_index2 / 8;
-//	  			int col2 = grid_index2 % 8;
-//	  			int radius2 = val2 / 4 + 1;
-//	  			if(radius2 < 3){
-//	  				radius2 = 0;
-//	  			}
-//	  			OLED_Square(col2 * 8 + 8, row2 * 8 + 4, radius2, White);
-////	  			OLED_Fill(White);
-//
-//
-//	  		}
-//	  		OLED_UpdateScreen(&hi2c1);
-	  		printf("-----------\n\r");
->>>>>>> fb3d9624b29be7933b04a3d876f5306cf8b010ed
 
 	  		for (int i = 0; i < 32; i++) {
 
