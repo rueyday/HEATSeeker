@@ -296,8 +296,8 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  uint32_t x_raw = adc_buffer[0];  // check which is X / Y on your board
-	  uint32_t y_raw = adc_buffer[1];
+	  int32_t x_raw = adc_buffer[0];  // check which is X / Y on your board
+	  int32_t y_raw = adc_buffer[1];
 
 //	  dir_t dir = joystick_get_direction();
 	  uart_buffer[0] = encode_direction(x_raw, y_raw);
@@ -339,7 +339,8 @@ int main(void)
 		  printf("rotary switch pressed! \r\n");
 	  }
 
-	  rot_count = ((TIM3->CNT) - 32768) >> 2;
+	  int32_t cnt = (int32_t)TIM3->CNT;
+	  rot_count = (cnt - 32768) >> 2;
 	  printf("rotary count: %d\r\n", rot_count);
 	  uart_buffer[3] = rot_count & 0x00FF;
 	  uart_buffer[2] = rot_count >> 8;
