@@ -339,17 +339,17 @@ int main(void)
 		  printf("rotary switch pressed! \r\n");
 	  }
 
-	  rot_count = (TIM3->CNT) - 32768;
-	  printf("rotary count: %d\r\n", rot_count >> 2);
-	  uart_buffer[2] = rot_count & 0x00FF;
-	  uart_buffer[3] = rot_count >> 8;
+	  rot_count = ((TIM3->CNT) - 32768) >> 2;
+	  printf("rotary count: %d\r\n", rot_count);
+	  uart_buffer[3] = rot_count & 0x00FF;
+	  uart_buffer[2] = rot_count >> 8;
 
 //	      printf("-------------------------\r\n");
 //	      printf("x_raw: %lu, y_raw: %lu\r\n", x_raw, y_raw);
 //	      printf("dir: %d, out L: %d, out R: %d\r\n",
 //	             (int)dir, uart_buffer[0], uart_buffer[1]);
 
-	  HAL_UART_Transmit(&huart4, uart_buffer, 2, 100);
+	  HAL_UART_Transmit(&huart4, uart_buffer, 4, 100);
 //	  HAL_Delay(100);
   }
   /* USER CODE END 3 */

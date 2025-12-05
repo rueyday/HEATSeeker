@@ -24,6 +24,7 @@
 #include "stdio.h"
 #include "math.h"
 #include "string.h"
+#include "led.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -55,11 +56,11 @@ SPI_HandleTypeDef hspi1;
 TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
-uint8_t uart_buffer[2];
+//uint8_t uart_buffer[2];
 char xbee_buffer[100];
-uint8_t xbee_int_buf[2];
+uint8_t xbee_int_buf[4];
 volatile uint8_t xbee_int_ready = 0;
-
+static uint16_t rot_val = 0;
 // FOR IR CAM 1
 uint8_t buf[128];
 uint8_t reg = 0x80;
@@ -151,7 +152,6 @@ void xbee_send(const char* cmd, UART_HandleTypeDef *huartx) {
 //	HAL_UART_Transmit(huartx, (uint8_t*)cmd, strlen(cmd), 100);
 //	HAL_UART_Transmit(huartx, (uint8_t*)"\r", 1, 100);
 	uint8_t resp[8];
-	HAL_StatusTypeDef st;
 
 	HAL_UART_Transmit(huartx, (uint8_t*)cmd, strlen(cmd), 100);
 	HAL_UART_Transmit(huartx, (uint8_t*)"\r", 1, 100);
@@ -447,7 +447,7 @@ int main(void)
   xbee_ir_setup();
   HAL_Delay(1000);
 
-  HAL_UART_Receive_IT(&huart5, xbee_int_buf, 2);
+  HAL_UART_Receive_IT(&huart5, xbee_int_buf, 4);
 //  HAL_UART_Receive_IT(&huart4, xbee_glass_int_buf, 2);
   uint8_t command;
 //  uint8_t left_value;
@@ -532,6 +532,8 @@ int main(void)
 
 	  if (xbee_int_ready){
 		  command = xbee_int_buf[0];
+		  rot_val = ((xbee_int_buf[2] << 8) | xbee_int_buf[3]);
+		  printf("rotary value: %d\r\n", rot_val);
 		  if(command >> 7){
 			  power = 1;
 		  }
@@ -670,7 +672,7 @@ int main(void)
 	  if (!HAL_UART_Transmit(&huart4, temp_send, 32, 100) == HAL_OK) {
 		  printf("[debug] UART4 transmit failed\n");
 	  }
-	  HAL_Delay(100);
+	  HAL_Delay(400);
   }
   /* USER CODE END 3 */
 }
@@ -1307,13 +1309,13 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     if (huart == &huart5) {
         xbee_int_ready = 1;
-        HAL_UART_Receive_IT(&huart5, xbee_int_buf, 2);
+        HAL_UART_Receive_IT(&huart5, xbee_int_buf, 4);
     }
 }
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
     if (huart == &huart5) {
-        HAL_UART_Receive_IT(&huart5, xbee_int_buf, 2);
+        HAL_UART_Receive_IT(&huart5, xbee_int_buf, 4);
     }
 }
 /* USER CODE END 4 */
