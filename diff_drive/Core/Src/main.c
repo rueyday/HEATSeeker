@@ -321,11 +321,11 @@ float batteryValue(){
         return -1.0f; //error
     }
 
-    float sum = 0;
-    for (int i = 0; i < 500; i++){
-    	sum += HAL_ADC_GetValue(&hadc1);
-    }
-    uint32_t raw = sum / 500;
+//    float sum = 0;
+//    for (int i = 0; i < 500; i++){
+//    	sum += HAL_ADC_GetValue(&hadc1);
+//    }
+    uint32_t raw = HAL_ADC_GetValue(&hadc1);
     printf("ADC raw = %lu\r\n", raw);
 
     //vadc = raw / 4096 * vref
@@ -525,7 +525,7 @@ int main(void)
 	  // In transmitter, after sending:
 
 //	  HAL_UART_Receive(&huart5, buf, 2, 200);
-	  float batt = batteryValue();
+	  batt = batteryValue();
 	  if(batt != 0.0){
 		  printf("[debug] battery value: %f\r\n", batt);
 	  }

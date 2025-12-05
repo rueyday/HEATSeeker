@@ -25,7 +25,7 @@
 #include "math.h"
 #include "string.h"
 #include "fonts.h"
-#include "oled_driver.h"
+//#include "oled_driver.h"
 #include "st7735.h"
 #include <stdbool.h>
 /* USER CODE END Includes */
@@ -140,55 +140,6 @@ uint8_t xbee_enter_command(void)
         return 0;
 }
 
-void OLED_Circle(int x0, int y0, int r, OLED_COLOR color)
-{
-    int x = r;
-    int y = 0;
-    int err = 0;
-
-    while (x >= y)
-    {
-        // Draw horizontal spans instead of single pixels
-        for (int i = x0 - x; i <= x0 + x; i++) {
-            OLED_DrawPixel(i, y0 + y, color);
-            OLED_DrawPixel(i, y0 - y, color);
-        }
-        for (int i = x0 - y; i <= x0 + y; i++) {
-            OLED_DrawPixel(i, y0 + x, color);
-            OLED_DrawPixel(i, y0 - x, color);
-        }
-
-        y++;
-
-        if (err <= 0)
-        {
-            err += 2*y + 1;
-        }
-        if (err > 0)
-        {
-            x--;
-            err -= 2*x + 1;
-        }
-    }
-}
-
-void OLED_Square(uint8_t x, uint8_t y, uint8_t size, OLED_COLOR color)
-{
-    // Prevent drawing outside the display
-    if (x >= OLED_WIDTH || y >= OLED_HEIGHT) return;
-
-    for (uint8_t i = 0; i < size; i++) {
-        for (uint8_t j = 0; j < size; j++) {
-            uint8_t px = x + j;
-            uint8_t py = y + i;
-
-            if (px < OLED_WIDTH && py < OLED_HEIGHT) {
-                OLED_DrawPixel(px, py, color);
-            }
-        }
-    }
-}
-
 void xbee_router_setup() {
 	if(xbee_enter_command()) {
 		xbee_send("ATID 2222");
@@ -220,7 +171,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 			break;
     	case SECOND_WAIT:
     		if (xbee_byte == 0x55) {
-    			indx = 0;
+//    			indx = 0;
     			xbee_state = READ_PAYLOAD;
     		} else {
     			xbee_state = FIRST_WAIT;
@@ -322,11 +273,11 @@ void interpolate8x8_to_32x32(void)
             float v1 = v10 + dx * (v11 - v10);
             uint8_t v = (uint8_t)(v0 + dy * (v1 - v0) + 0.5f);
 
-            if (v != image_frame[y][x]) {
-                draw_queue[y][x] = true;
-            } else {
-                draw_queue[y][x] = false;
-            }
+//            if (v != image_frame[y][x]) {
+//                draw_queue[y][x] = true;
+//            } else {
+//                draw_queue[y][x] = false;
+//            }
         }
     }
 }
@@ -352,12 +303,12 @@ void interpolate8x8_to_40x40(void)
             float v0 = v00 + dx * (v01 - v00);
             float v1 = v10 + dx * (v11 - v10);
             uint8_t v = (uint8_t)(v0 + dy * (v1 - v0) + 0.5f);
-
-            if (v != image_frame[y][x]) {
-                draw_queue[y][x] = true;
-            } else {
-                draw_queue[y][x] = false;
-            }
+//
+//            if (v != image_frame[y][x]) {
+//                draw_queue[y][x] = true;
+//            } else {
+//                draw_queue[y][x] = false;
+//            }
         }
     }
 }
