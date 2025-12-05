@@ -119,6 +119,7 @@ void xbee_send(const char* cmd) {
 	HAL_UART_Receive(&huart1, resp, 3, 1000);
 	printf("resp: %s\r", resp);
 }
+//testing
 
 uint8_t xbee_enter_command(void)
 {
