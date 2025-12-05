@@ -444,8 +444,8 @@ int main(void)
   HAL_Delay(1000);
   xbee_router_setup();
   HAL_Delay(1000);
-//  xbee_ir_setup();
-//  HAL_Delay(1000);
+  xbee_ir_setup();
+  HAL_Delay(1000);
 
   HAL_UART_Receive_IT(&huart5, xbee_int_buf, 2);
 //  HAL_UART_Receive_IT(&huart4, xbee_glass_int_buf, 2);
@@ -534,7 +534,8 @@ int main(void)
 		  command = xbee_int_buf[0];
 		  if(command >> 7){
 			  power = 1;
-		  }else{
+		  }
+		  else {
 			  led_setColor(&hspi1, 0x00, 0x00, 0xFF);
 			  power = 0;
 			  motor_left_stop();
@@ -669,7 +670,7 @@ int main(void)
 	  if (!HAL_UART_Transmit(&huart4, temp_send, 32, 100) == HAL_OK) {
 		  printf("[debug] UART4 transmit failed\n");
 	  }
-//	  HAL_Delay(30);
+	  HAL_Delay(100);
   }
   /* USER CODE END 3 */
 }

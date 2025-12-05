@@ -48,18 +48,24 @@ DMA_HandleTypeDef hdma_adc1;
 UART_HandleTypeDef hlpuart1;
 UART_HandleTypeDef huart4;
 
-TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
+volatile uint8_t pe9_pressed = 0;
+volatile uint8_t pe11_pressed = 0;
+volatile uint8_t pf13_pressed = 0;
+
+volatile uint8_t rot_sw = 0;
+
 static uint32_t adc_buffer[2];
-static uint8_t x = 0;
+static int rot_count = 0;
 float left_motor_speed = 0.0f;
 float right_motor_speed = 0.0f;
-uint8_t uart_buffer[2];
+uint8_t uart_buffer[4];
 char xbee_buffer[100];
 
-int power = 1;
-int mode = 0;
+uint8_t power = 1;
+uint8_t mode = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -68,18 +74,14 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_LPUART1_UART_Init(void);
-static void MX_TIM2_Init(void);
 static void MX_UART4_Init(void);
+static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-volatile uint8_t pe9_pressed = 0;
-volatile uint8_t pe11_pressed = 0;
-volatile uint8_t pf13_pressed = 0;
-
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
     uint32_t now = HAL_GetTick();  // for debouncing
@@ -87,21 +89,31 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
     static uint32_t last_pe9  = 0;
     static uint32_t last_pe11 = 0;
     static uint32_t last_pf13 = 0;
-    if (GPIO_Pin == GPIO_PIN_9) {
+    static uint32_t last_sw  = 0;
+
+    switch(GPIO_Pin) {
+    case GPIO_PIN_1:
+        if (now - last_sw < 200) return;
+        last_sw = now;
+    	rot_sw = 1;
+    	break;
+    case GPIO_PIN_9:
         if (now - last_pe9 < 200) return;
         last_pe9 = now;
         pe9_pressed = 1;
-    }
-    if (GPIO_Pin == GPIO_PIN_11) {
+    	break;
+    case GPIO_PIN_11:
         if (now - last_pe11 < 200) return;
         last_pe11 = now;
         pe11_pressed = 1;
-    }
-    if (GPIO_Pin == GPIO_PIN_13) {
+    	break;
+    case GPIO_PIN_13:
         if (now - last_pf13 < 200) return;
         last_pf13 = now;
         pf13_pressed = 1;
+    	break;
     }
+    return;
 }
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 	return;
@@ -265,11 +277,14 @@ int main(void)
   MX_DMA_Init();
   MX_ADC1_Init();
   MX_LPUART1_UART_Init();
-  MX_TIM2_Init();
   MX_UART4_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
   xbee_coord_setup();
   HAL_Delay(1000);
+  HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
+
+  __HAL_TIM_SET_COUNTER(&htim3, 32768);
   HAL_ADC_Start_DMA(&hadc1, adc_buffer, 2);
 
   /* USER CODE END 2 */
@@ -312,14 +327,23 @@ int main(void)
 	  }else{
 		  uart_buffer[0] &= 0b10111111;
 	  }
-	  printf("command: %d \n", (uart_buffer[0]>>6));
+//	  printf("command: %d \n", (uart_buffer[0]>>6));
 	  if (pf13_pressed) {
 		  pf13_pressed = 0;
 		  printf("PF13 press!\r\n");
 	  }
 
+	  if(rot_sw){
+		  rot_sw = 0;
+		  __HAL_TIM_SET_COUNTER(&htim3, 32768);
+		  printf("rotary switch pressed! \r\n");
+	  }
 
-//
+	  rot_count = (TIM3->CNT) - 32768;
+	  printf("rotary count: %d\r\n", rot_count >> 2);
+	  uart_buffer[2] = rot_count & 0x00FF;
+	  uart_buffer[3] = rot_count >> 8;
+
 //	      printf("-------------------------\r\n");
 //	      printf("x_raw: %lu, y_raw: %lu\r\n", x_raw, y_raw);
 //	      printf("dir: %d, out L: %d, out R: %d\r\n",
@@ -545,50 +569,51 @@ static void MX_UART4_Init(void)
 }
 
 /**
-  * @brief TIM2 Initialization Function
+  * @brief TIM3 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_TIM2_Init(void)
+static void MX_TIM3_Init(void)
 {
 
-  /* USER CODE BEGIN TIM2_Init 0 */
+  /* USER CODE BEGIN TIM3_Init 0 */
 
-  /* USER CODE END TIM2_Init 0 */
+  /* USER CODE END TIM3_Init 0 */
 
+  TIM_Encoder_InitTypeDef sConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_IC_InitTypeDef sConfigIC = {0};
 
-  /* USER CODE BEGIN TIM2_Init 1 */
+  /* USER CODE BEGIN TIM3_Init 1 */
 
-  /* USER CODE END TIM2_Init 1 */
-  htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 0;
-  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 4294967295;
-  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_IC_Init(&htim2) != HAL_OK)
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 0;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 65535;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
+  sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
+  sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
+  sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
+  sConfig.IC1Filter = 10;
+  sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
+  sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
+  sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
+  sConfig.IC2Filter = 10;
+  if (HAL_TIM_Encoder_Init(&htim3, &sConfig) != HAL_OK)
   {
     Error_Handler();
   }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
   {
     Error_Handler();
   }
-  sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_RISING;
-  sConfigIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
-  sConfigIC.ICPrescaler = TIM_ICPSC_DIV1;
-  sConfigIC.ICFilter = 0;
-  if (HAL_TIM_IC_ConfigChannel(&htim2, &sConfigIC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM2_Init 2 */
+  /* USER CODE BEGIN TIM3_Init 2 */
 
-  /* USER CODE END TIM2_Init 2 */
+  /* USER CODE END TIM3_Init 2 */
 
 }
 
@@ -622,54 +647,41 @@ static void MX_GPIO_Init(void)
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
-  __HAL_RCC_GPIOG_CLK_ENABLE();
-  __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOF_CLK_ENABLE();
+  __HAL_RCC_GPIOG_CLK_ENABLE();
   HAL_PWREx_EnableVddIO2();
 
-//  /*Configure GPIO pin : PC13 */
-//  GPIO_InitStruct.Pin = GPIO_PIN_13;
-//  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;  // recommended
-//  GPIO_InitStruct.Pull = GPIO_PULLUP;           // required
-//  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  // PB2
-  GPIO_InitStruct.Pin  = GPIO_PIN_2;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  // PE9  (button → GND)
-  GPIO_InitStruct.Pin  = GPIO_PIN_9;
+  /*Configure GPIO pin : PF13 */
+  GPIO_InitStruct.Pin = GPIO_PIN_13;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
-
-  // PE11 (also likely button → GND)
-  GPIO_InitStruct.Pin  = GPIO_PIN_11;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
-
-  // PF13 = YOUR “user” button
-  GPIO_InitStruct.Pin  = GPIO_PIN_13;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;   // falling = press
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
 
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI2_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI2_IRQn);
+  /*Configure GPIO pin : PG1 */
+  GPIO_InitStruct.Pin = GPIO_PIN_1;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 
-  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+  /*Configure GPIO pins : PE9 PE11 */
+  GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_11;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 
   HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
