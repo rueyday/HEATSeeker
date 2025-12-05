@@ -90,6 +90,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
     static uint32_t last_pe11 = 0;
     static uint32_t last_pf13 = 0;
     static uint32_t last_sw  = 0;
+    static uint32_t last_but = 0;
 
     switch(GPIO_Pin) {
     case GPIO_PIN_1:
@@ -302,8 +303,6 @@ int main(void)
 //	  dir_t dir = joystick_get_direction();
 	  uart_buffer[0] = encode_direction(x_raw, y_raw);
 
-//	  printf("command: %d \n", uart_buffer[0]);
-
 	  if (pe9_pressed) {
 		  pe9_pressed = 0;
 		  power = !power;
@@ -340,7 +339,7 @@ int main(void)
 	  }
 
 	  rot_count = ((TIM3->CNT) - 32768) >> 2;
-	  printf("rotary count: %d\r\n", rot_count);
+//	  printf("rotary count: %d\r\n", rot_count);
 	  uart_buffer[3] = rot_count & 0x00FF;
 	  uart_buffer[2] = rot_count >> 8;
 
@@ -350,6 +349,7 @@ int main(void)
 //	             (int)dir, uart_buffer[0], uart_buffer[1]);
 
 	  HAL_UART_Transmit(&huart4, uart_buffer, 4, 100);
+	  HAL_Delay(20);
 //	  HAL_Delay(100);
   }
   /* USER CODE END 3 */

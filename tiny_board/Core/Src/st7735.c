@@ -1,6 +1,9 @@
 #include "st7735.h"
+#include "fonts.h"
+//#include "stm32l4xx_hal.h"
 
 static SPI_HandleTypeDef *ST7735_hspi;
+static ST7735_TypeDef screen;
 
 static void ST7735_WriteCommand(uint8_t cmd)
 {
@@ -90,4 +93,69 @@ void ST7735_FillScreen(uint16_t color)
         HAL_SPI_Transmit(ST7735_hspi, data, 2, HAL_MAX_DELAY);
 
     ST7735_CS_HIGH();
+}
+
+void ST7735_DrawBlock(int x, int y, int size, uint16_t color) {
+	for (int j = 0; j < size; j++) {
+	  for (int i = 0; i < size; i++) {
+		  ST7735_DrawPixel(x + i, y + j, color);
+	  }
+	}
+}
+
+
+
+//Font Def is the size
+char ST7735_WriteChar(char ch, FontDef Font, uint16_t color) {
+//	ST7735_SetAddrWindow(95, 0, 127, 63);
+	//un-hardcode this
+    uint32_t i, b, j;
+    uint8_t data[] = { color >> 8, color & 0xFF};
+    // Check remaining space on current line
+    if (ST7735_WIDTH <= (screen.CurrentX + Font.width) ||
+    		ST7735_HEIGHT <= (screen.CurrentY + Font.height))
+    {
+        // Not enough space on current line
+        return 0;
+    }
+    for (i = 0; i < Font.height; i++)
+    {
+        b = Font.data[(ch - 32) * Font.height + i];
+        for (j = 0; j < Font.width; j++)
+        {
+            if ((b << j) & 0x8000)
+            {
+            	ST7735_DrawPixel(screen.CurrentX + j, (screen.CurrentY + i), data);
+            }
+            else
+            {
+            	ST7735_DrawPixel(screen.CurrentX + j, (screen.CurrentY + i), BLACK);
+            }
+        }
+    }
+    screen.CurrentX += Font.width;
+
+    // Return written char for validation
+    return ch;
+}
+
+char ST7735_WriteString(const char* str, FontDef Font, uint16_t color)
+{
+    // Write until null-byte
+    while (*str)
+    {
+        if (ST7735_WriteChar(*str, Font, color) != *str)
+        {
+            // Char could not be written
+            return *str;
+        }
+        str++;
+    }
+    return *str;
+}
+
+void ST7735_SetCursor(uint8_t x, uint8_t y)
+{
+    screen.CurrentX = x;
+    screen.CurrentY = y;
 }
