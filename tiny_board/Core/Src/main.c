@@ -69,7 +69,7 @@ enum {
 
 // FOR LCD
 uint8_t raw_frame[8][8];
-bool draw_queue[8][8];
+//bool draw_queue[8][8];
 #define CELL_SIZE  8
 
 /* USER CODE END PV */
@@ -227,31 +227,32 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     		}
     		break;
     	case READ_PAYLOAD:
-//			uart_buffer[indx] = xbee_byte;
+			uart_buffer[indx++] = xbee_byte;
+			printf("%d: %d\n\r", indx, xbee_byte);
 
 			// process it to raw_frame as soon as we get a byte!!
-			uint8_t val1 = (xbee_byte >> 4) & 0x0F;
-			uint8_t val2 = (xbee_byte & 0x0F);
-
-			uint8_t row = indx/4;
-			uint8_t col1 = 2*(indx%4);
-			uint8_t col2 = 1+2*(indx%4);
-			if (raw_frame[row][col1] != val1) {
-				draw_queue[row][col1] = true;
-				raw_frame[row][col1] = val1;
-			} else {
-				draw_queue[row][col1] = false;
-			}
-
-			if (raw_frame[row][col2] != val2) {
-				draw_queue[row][col2] = true;
-				raw_frame[row][col2] = val2;
-			} else {
-				draw_queue[row][col2] = false;
-			}
-
-
-			indx++;
+//			uint8_t val1 = (xbee_byte >> 4) & 0x0F;
+//			uint8_t val2 = (xbee_byte & 0x0F);
+//
+//			uint8_t row = indx/4;
+//			uint8_t col1 = 2*(indx%4);
+//			uint8_t col2 = 1+2*(indx%4);
+//			if (raw_frame[row][col1] != val1) {
+//				draw_queue[row][col1] = true;
+//				raw_frame[row][col1] = val1;
+//			} else {
+//				draw_queue[row][col1] = false;
+//			}
+//
+//			if (raw_frame[row][col2] != val2) {
+//				draw_queue[row][col2] = true;
+//				raw_frame[row][col2] = val2;
+//			} else {
+//				draw_queue[row][col2] = false;
+//			}
+//
+//
+//			indx++;
 
 			if(indx == 32){
 				xbee_int_ready = 1;
@@ -414,8 +415,8 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-  memset(raw_frame, 0, sizeof(raw_frame));
-  memset(draw_queue, 0, sizeof(draw_queue));
+//  memset(raw_frame, 0, sizeof(raw_frame));
+//  memset(draw_queue, 0, sizeof(draw_queue));
 
   /* USER CODE END Init */
 
@@ -442,22 +443,22 @@ int main(void)
    HAL_Delay(1000);
 
    // Init lcd using one of the stm32HAL i2c typedefs
-   if (OLED_Init(&hi2c1) != 0) {
-     Error_Handler();
-   }
-   HAL_Delay(100);
+//   if (OLED_Init(&hi2c1) != 0) {
+//     Error_Handler();
+//   }
+//   HAL_Delay(100);
 
-   OLED_Fill(Black);
-   OLED_UpdateScreen(&hi2c1);
+//   OLED_Fill(Black);
+//   OLED_UpdateScreen(&hi2c1);
    ST7735_Init(&hspi1);
 
    HAL_Delay(1000);
 
    // Write data to local screenbuffer
-   OLED_SetCursor(0, 0);
-   OLED_WriteString("Initialization", Font_7x10, White);
-   OLED_SetCursor(0, 10);
-   OLED_WriteString("Done >:)", Font_7x10, White);
+//   OLED_SetCursor(0, 0);
+//   OLED_WriteString("Initialization", Font_7x10, White);
+//   OLED_SetCursor(0, 10);
+//   OLED_WriteString("Done >:)", Font_7x10, White);
 
 
 
@@ -473,13 +474,13 @@ int main(void)
   //   }
 
    // Copy all data from local screenbuffer to the screen
-   HAL_Delay(100);
-   OLED_UpdateScreen(&hi2c1);
+//   HAL_Delay(100);
+//   OLED_UpdateScreen(&hi2c1);
 
 
    HAL_Delay(100);
-   HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
-   int k = 0;
+//   HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
+//   int k = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -489,66 +490,29 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-//	  ST7735_FillScreen(RED);
-//	  HAL_Delay(1000);
-//	  ST7735_FillScreen(GREEN);
-//	  HAL_Delay(1000);
-//	  ST7735_FillScreen(BLUE);
-//	  HAL_Delay(1000);
-//
+
 	  	 if(xbee_int_ready){
 	  		 xbee_int_ready = 0;
-//	  		OLED_Fill(Black);
-//	  //	         Print your data
-//	  		for (int i = 0; i < 32; i++) {
-//	  			uint8_t byte = uart_buffer[i];
-//	  			int val1 = (byte >> 4) & 0x0F;  // Upper 4 bits
-//	  			int val2 = byte & 0x0F;         // Lower 4 bits
-////
-//	  			printf("%d %d  ", (byte >> 4) & 0x0F, byte & 0x0F);
-//	  			if (i % 4 == 3) printf("\n\r");
-//
-//
-//	  			// Convert to 8x8 grid positions
-//	  			int grid_index = i * 2;         // 0-63 (64 total values)
-//	  			int row = grid_index / 8;       // 0-7 (8 rows)
-//	  			int col = grid_index % 8;       // 0-7 (8 columns)
-//
-//	  			// First value
-//	  			int radius1 = val1 / 4 + 1;     // Scale 0-15 to radius 1-8
-//	  			if(radius1 < 3){
-//	  				radius1 = 0;
-//	  			}
-//	  			OLED_Square(col * 8 + 8, row * 8 + 4, radius1, White);
-//
-//	  			// Second value (next column)
-//	  			int grid_index2 = grid_index + 1;
-//	  			int row2 = grid_index2 / 8;
-//	  			int col2 = grid_index2 % 8;
-//	  			int radius2 = val2 / 4 + 1;
-//	  			if(radius2 < 3){
-//	  				radius2 = 0;
-//	  			}
-//	  			OLED_Square(col2 * 8 + 8, row2 * 8 + 4, radius2, White);
-////	  			OLED_Fill(White);
-//
-//
-//	  		}
-//	  		OLED_UpdateScreen(&hi2c1);
-//	  		printf("-----------\n\r");
 
-//	  		  MULTI-COLOR DISPLAY
+	  		for (int i = 0; i < 32; i++) {
+
+				  uint8_t byte = uart_buffer[i];
+				  uint8_t val1 = (byte >> 4) & 0x0F;
+				  uint8_t val2 = (byte & 0x0F);
+
+				  raw_frame[i/4][2*(i%4)] = val1;
+				  raw_frame[i/4][1+2*(i%4)] = val2;
+
+			  }
+
 	  		for (int i = 0; i < 8; i++) {
-//	  			for (int j = 0; j < 8; j++) {
-//	  				if (draw_queue[i][j]) {
-//	  					ST7735_DrawPixel(i * 8 + 8, j * 8 + 4, heatmap_rgb[raw_frame[i][j]]);
-//	  				}
-	  			printf("%d %d  %d %d  %d %d  %d %d\n\r", raw_frame[i][0], raw_frame[i][1], raw_frame[i][2], raw_frame[i][3], raw_frame[i][4], raw_frame[i][5], raw_frame[i][6], raw_frame[i][7]);
-	  		}
+				printf("%d %d  %d %d  %d %d  %d %d\n\r", raw_frame[i][0], raw_frame[i][1], raw_frame[i][2], raw_frame[i][3], raw_frame[i][4], raw_frame[i][5], raw_frame[i][6], raw_frame[i][7]);
+			}
+
 	  		ST7735_DrawFullGrid();
 	  	 }
 
-	  	 HAL_Delay(100);
+//	  	 HAL_Delay(100);
   }
   /* USER CODE END 3 */
 }
