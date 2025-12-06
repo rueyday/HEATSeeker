@@ -60,7 +60,11 @@ TIM_HandleTypeDef htim3;
 char xbee_buffer[100];
 uint8_t xbee_int_buf[4];
 volatile uint8_t xbee_int_ready = 0;
+<<<<<<< HEAD
 static uint16_t rot_val = 0;
+=======
+
+>>>>>>> 5d139bf (just need to add speaker now)
 // FOR IR CAM 1
 uint8_t buf[128];
 uint8_t reg = 0x80;
@@ -78,7 +82,6 @@ uint8_t history_pos = 0; // where to write next
 uint8_t history_count = 0; // how many valid entries (<= 50)
 
 //for PI controller
-float error_integral = 0.0f;
 const float Kp_x = 8000.0f;//tune!
 const float Kp_rot = 13000.0f;//tune!
 
@@ -93,6 +96,8 @@ typedef enum {
 } control_mode_t;
 
 int power = 0;
+int8_t button1 = 0;
+int8_t button2 = 0;
 
 volatile control_mode_t control_mode = MODE_IR_ONLY;
 
@@ -450,9 +455,8 @@ int main(void)
   HAL_UART_Receive_IT(&huart5, xbee_int_buf, 4);
 //  HAL_UART_Receive_IT(&huart4, xbee_glass_int_buf, 2);
   uint8_t command;
-//  uint8_t left_value;
-//  uint8_t right_value;
-
+  uint8_t info;
+  int8_t rot_val = 0;
   uint8_t target_row = 4;
   uint8_t target_col = 4;
 
@@ -471,8 +475,16 @@ int main(void)
     /* USER CODE END WHILE */
 	  // :33
     /* USER CODE BEGIN 3 */
+	  float batt = batteryValue();
+	  float percent = batteryPercent(batt);
+	  printf("battery value: %f\r\n", batt);
+	  printf("battery percent: %f\r\n", percent);
 
-//	  HAL_Delay(200);
+//	  uint8_t temp_send[32];
+//	  float span  = T_MAX - T_MIN;
+//	  //normalize
+//	  float n1 = (t1 - T_MIN) / span;
+//	  n1 *= gain;
 //
 //	  HAL_Delay(200);
 
@@ -488,52 +500,18 @@ int main(void)
 	  HAL_I2C_Master_Transmit(&hi2c1, SAD_IRCAM_W, &reg, 1, 1000);
 	  HAL_I2C_Master_Receive(&hi2c1, SAD_IRCAM_R, buf, 128, 1000);
 
-
-	  int idx = 0;
-
-	  float T_MIN = 18.0f;
-	  float T_MAX = 32.0f;
-
-	  for (int i = 0; i < 8; i++) {
-	      for (int j = 6; j >= 0; j -= 2) {
-
-	          uint16_t raw1 = (buf[i*16 + j*2 + 1] << 8) | buf[i*16 + j*2];
-	          if (raw1 > 2047) raw1 -= 4096;
-	          float t1 = raw1 * 0.25f;
-
-	          if (t1 < T_MIN) t1 = T_MIN;
-	          int p1 = (int)(((t1-T_MIN) / (T_MAX-T_MIN)) * 15.0f);
-
-	          uint16_t raw2 = (buf[i*16 + (j+1)*2 + 1] << 8) | buf[i*16 + (j+1)*2];
-	          if (raw2 > 2047) raw2 -= 4096;
-	          float t2 = raw2 * 0.25f;
-
-	          if (t2 < T_MIN) t2 = T_MIN;
-	          int p2 = (int)(((t2-T_MIN) / (T_MAX-T_MIN)) * 15.0f);
-
-	          temp_send[idx++] = (uint8_t)((p1 << 4) | (p2 & 0x0F));
-	      }
-	  }
-
-//	  for (uint8_t i = 0; i < 32; i++) {
-//		  uint8_t byte = temp_send[i];
-//		  printf("%d %d  ", (byte >> 4) & 0x0F, byte & 0x0F);
-//		  if (i % 4 == 3) printf("\n\r");
-//	  }
-//	  printf("-----------\n\r");
-//		  HAL_UART_Transmit(&huart4, temp_send, 32, 100);
-	  // In transmitter, after sending:
-
-//	  HAL_UART_Receive(&huart5, buf, 2, 200);
-	  batt = batteryValue();
-	  if(batt != 0.0){
-		  printf("[debug] battery value: %f\r\n", batt);
-	  }
-
 	  if (xbee_int_ready){
 		  command = xbee_int_buf[0];
-		  rot_val = ((xbee_int_buf[2] << 8) | xbee_int_buf[3]);
-		  printf("rotary value: %d\r\n", rot_val);
+		  info = xbee_int_buf[1];
+		  button1 = info%2;
+		  button2 = (info%4 - button1)/2;
+		  if(info>>7){
+			  rot_val = (int8_t)((info & 0b01111100)>>2);
+		  }else{
+			  rot_val = -(int8_t)((info & 0b01111100)>>2);
+		  }
+
+		  printf("buttons: %d, %d | rotation: %d\r\n", button1, button2, rot_val);
 		  if(command >> 7){
 			  power = 1;
 		  }
@@ -581,6 +559,38 @@ int main(void)
 		  }
 	  }
 
+	  int idx = 0;
+
+	  float T_MIN = 18.0f + (float)rot_val;
+	  float T_MAX = 32.0f + (float)rot_val;
+
+	  for (int i = 0; i < 8; i++) {
+		  for (int j = 6; j >= 0; j -= 2) {
+
+			  uint16_t raw1 = (buf[i*16 + j*2 + 1] << 8) | buf[i*16 + j*2];
+			  if (raw1 > 2047) raw1 -= 4096;
+			  float t1 = raw1 * 0.25f;
+
+			  if (t1 < T_MIN) t1 = T_MIN;
+			  int p1 = (int)(((t1-T_MIN) / (T_MAX-T_MIN)) * 15.0f);
+
+			  uint16_t raw2 = (buf[i*16 + (j+1)*2 + 1] << 8) | buf[i*16 + (j+1)*2];
+			  if (raw2 > 2047) raw2 -= 4096;
+			  float t2 = raw2 * 0.25f;
+
+			  if (t2 < T_MIN) t2 = T_MIN;
+			  int p2 = (int)(((t2-T_MIN) / (T_MAX-T_MIN)) * 15.0f);
+
+			  temp_send[idx++] = (uint8_t)((p1 << 4) | (p2 & 0x0F));
+		  }
+	  }
+
+	  for (uint8_t i = 0; i < 32; i++) {
+		  uint8_t byte = temp_send[i];
+		  printf("%d %d  ", (byte >> 4) & 0x0F, byte & 0x0F);
+		  if (i % 4 == 3) printf("\n\r");
+	  }
+	  printf("-----------\n\r");
 
 	  if ((control_mode == MODE_IR_ONLY) && power){
 		  led_setColor(&hspi1, 0xFF, 0x00, 0x00);

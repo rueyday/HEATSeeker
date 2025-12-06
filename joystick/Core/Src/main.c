@@ -339,6 +339,7 @@ int main(void)
 	  }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 	  rot_count = ((TIM3->CNT) - 32768) >> 2;
 //	  printf("rotary count: %d\r\n", rot_count);
 =======
@@ -358,6 +359,49 @@ int main(void)
 	  HAL_Delay(20);
 //	  HAL_Delay(100);
   }
+=======
+        int32_t cnt = (int32_t)TIM3->CNT;
+        rot_count = (cnt - 32768) >> 4;
+        if(rot_count >= 32){
+        	rot_count = 32;
+        }
+        if(rot_count < -32){
+        	rot_count = -32;
+        }
+        if(rot_count >= 0){
+        	uart_buffer[1] = (uint8_t)(rot_count<<2) & 0b01111111;
+        }else{
+        	uart_buffer[1] = (uint8_t)((-rot_count)<<2) | 0b10000000;
+        }
+        printf("rotary count: %d\r\n", rot_count);
+
+        if (pf13_pressed) {
+			pf13_pressed = 0;
+			feature1 = !feature1;
+			printf("PF13 press!\r\n");
+		}
+		if (pe0_pressed) {
+			pe0_pressed = 0;
+			feature2 = !feature2;
+			printf("PE0 press!\r\n");
+		}
+
+		if(feature1){
+			uart_buffer[1] |= 0b00000001;
+		}else{
+			uart_buffer[1] &= 0b11111110;
+		}
+
+		if(feature2){
+			uart_buffer[1] |= 0b00000010;
+		}else{
+			uart_buffer[1] &= 0b11111101;
+		}
+
+        HAL_UART_Transmit(&huart4, uart_buffer, 2, 100);
+        HAL_Delay(200);
+    }
+>>>>>>> 5d139bf (just need to add speaker now)
   /* USER CODE END 3 */
 }
 
