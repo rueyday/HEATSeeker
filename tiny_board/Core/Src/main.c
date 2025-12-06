@@ -258,7 +258,7 @@ static const uint16_t heatmap_rgb[16] = {
     0xFFFF, // White
     0xFFFF  // Pure White
 };
-
+//testing
 void ST7735_DrawFullGrid(void) {
     ST7735_SetAddrWindow(30, 0, 93, 63);
 
