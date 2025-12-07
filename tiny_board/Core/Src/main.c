@@ -87,6 +87,8 @@ uint8_t batt_dir;
 volatile uint8_t xbee_int_ready = 0;
 volatile uint8_t got_16_min = 0;
 volatile uint8_t new_batt = 0;
+volatile uint8_t right_mov = 0b111;
+volatile uint8_t left_mov = 0b111;
 
 uint8_t batt_level = 10;
 uint8_t r = 0;
@@ -100,7 +102,7 @@ enum {
 
 // FOR LCD
 uint8_t raw_frame[8][8];
-//bool draw_queue[8][8];
+bool draw_queue[8][8];
 
 #define CELL_SIZE  8
 
@@ -482,6 +484,7 @@ int main(void)
 	  			uint8_t val1 = (byte >> 4) & 0x0F;
 	  			uint8_t val2 = byte & 0x0F;
 
+
 	  			raw_frame[i/4][2*(i%4)] = val1;
 	  			raw_frame[i/4][1+2*(i%4)] = val2;
 	  		}
@@ -490,12 +493,13 @@ int main(void)
 			}
 	  		ST7735_DrawFullGrid();
 
-			ST7735_SetCursor(25, 85);
 			uint8_t new_batt_level = (batt_dir & 0b1110000) >> 4;
 			if (new_batt_level != batt_level) {
+				ST7735_SetCursor(25, 85);
+
 				switch (new_batt_level) {
 					case 0:
-						ST7735_WriteString("0", Font_11x18, WHITE);
+						ST7735_WriteChar('0', Font_11x18, WHITE);
 						break;
 					case 1:
 						ST7735_WriteString("20", Font_11x18, WHITE);
@@ -513,13 +517,54 @@ int main(void)
 						ST7735_WriteString("100", Font_11x18, WHITE);
 						break;
 					default:
-						ST7735_WriteString("0", Font_11x18, WHITE);
+						ST7735_WriteChar('0', Font_11x18, WHITE);
 						break;
 				}
-			}
-			uint8_t right_mov = (batt_dir & 0b1100) >> 2;
-			uint8_t left_mov = batt_dir & 0b11;
 
+				batt_level = new_batt_level;
+			}
+			uint8_t new_right_mov = (batt_dir & 0b1100) >> 2;
+			uint8_t new_left_mov = batt_dir & 0b11;
+
+			if (new_right_mov != right_mov || new_left_mov != left_mov) {
+				ST7735_SetCursor(70, 115);
+				switch(new_left_mov) {
+					case 0b00:
+						switch (new_right_mov) {
+							case 0b00: ST7735_WriteChar('S', Font_11x18, WHITE); break;
+							case 0b01: ST7735_WriteChar('L', Font_11x18, WHITE); break;
+							case 0b10: ST7735_WriteChar('R', Font_11x18, WHITE); break;
+							default: ST7735_WriteChar('S', Font_11x18, WHITE); break;
+						}
+						break;
+					case 0b01:
+						switch (new_right_mov) {
+							case 0b00: ST7735_WriteChar('R', Font_11x18, WHITE); break;
+							case 0b01: ST7735_WriteChar('F', Font_11x18, WHITE); break;
+							case 0b10: ST7735_WriteChar('R', Font_11x18, WHITE); break;
+							default: ST7735_WriteChar('S', Font_11x18, WHITE); break;
+						}
+						break;
+					case 0b10:
+						switch (new_right_mov) {
+							case 0b00: ST7735_WriteChar('L', Font_11x18, WHITE); break;
+							case 0b01: ST7735_WriteChar('L', Font_11x18, WHITE); break;
+							case 0b10: ST7735_WriteChar('B', Font_11x18, WHITE); break;
+							default: ST7735_WriteChar('S', Font_11x18, WHITE); break;
+						}
+						break;
+					default:
+						switch (new_right_mov) {
+							case 0b00: ST7735_WriteChar('S', Font_11x18, WHITE); break;
+							case 0b01: ST7735_WriteChar('L', Font_11x18, WHITE); break;
+							case 0b10: ST7735_WriteChar('R', Font_11x18, WHITE); break;
+							default: ST7735_WriteChar('S', Font_11x18, WHITE); break;
+						}
+						break;
+				}
+				right_mov = new_right_mov;
+				left_mov = new_left_mov;
+			}
 
 
 
