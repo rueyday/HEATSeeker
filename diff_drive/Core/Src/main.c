@@ -110,6 +110,20 @@ volatile control_mode_t control_mode = MODE_IR_ONLY;
 #define RED_Port	GPIOF
 #define RED_Pin		GPIO_PIN_12
 
+//music buzzer stuff
+#define TIMER_CLK_HZ 4000000.0f
+
+static const float buzzer_freqs[] = {
+			659.26, 493.88, 523.25, 587.33, 523.25, 493.88, 440.00, 220.00, 440.00, 523.25, 659.26, 587.33, 523.25, 493.88, 415.30, 523.25, 587.33, 659.26, 523.25, 440.00, 220.00, 220.00, 587.33, 698.46, 880.00, 783.99, 698.46, 659.26, 523.25, 659.26, 587.33, 523.25, 493.88, 246.94, 261.63, 587.33, 659.26, 523.25, 440.00
+	};
+	//ms
+	static const float buzzer_durations[] = {
+			406.35, 191.56, 185.76, 365.71, 203.17, 191.56, 162.54, 162.54, 168.34, 168.34, 371.52, 203.17, 191.56, 388.93, 145.12, 203.17, 377.32, 388.93, 383.13, 191.56, 609.52, 87.07, 406.35, 185.76, 383.13, 191.56, 191.56, 522.45, 214.78, 377.32, 197.37, 185.76, 214.78, 319.27, 168.34, 342.49, 394.74, 383.13, 853.33
+	};
+
+static const int buzzer_num_notes = sizeof(buzzer_freqs) / sizeof(buzzer_freqs[0]);
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -402,6 +416,30 @@ uint8_t batteryPercent(float vbat){
     	}
 	}
 
+
+void buzzer_play_melody(void)
+{
+    for (int i = 0; i < buzzer_num_notes; i++) {
+        float note = buzzer_freqs[i];
+
+        //ARR = (timer_clk / freq) - 1, timer_clk = 4 MHz (MSI, PSC=0)
+        uint32_t arr = (uint32_t)(TIMER_CLK_HZ / note) - 1;
+        __HAL_TIM_SET_AUTORELOAD(&htim1, arr);
+
+        //50% duty
+        uint32_t duty = (arr + 1) / 2;
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, duty);
+
+        __HAL_TIM_SET_COUNTER(&htim1, 0);
+        HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+
+        HAL_Delay((uint32_t)buzzer_durations[i]);
+        HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
+
+        printf("playing: %f\n", buzzer_freqs[i]);
+    }
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -474,6 +512,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  buzzer_play_melody();
 	  float batt = batteryValue();
 	  float percent = batteryPercent(batt);
 	  printf("battery value: %f\r\n", batt);
@@ -482,7 +521,7 @@ int main(void)
 //	  uint8_t temp_send[32];
 //	  float span  = T_MAX - T_MIN;
 //	  //normalize
-//	  float n1 = (t1 - T_MIN) / span;
+//	  float n1 = (t1 - T_MIN) / span;\
 //	  n1 *= gain;
 
 	  uint8_t temp_send[32];
@@ -490,10 +529,14 @@ int main(void)
 	  HAL_I2C_Master_Receive(&hi2c1, SAD_IRCAM_R, buf, 128, 1000);
 
 	  if (xbee_int_ready){
+
 		  command = xbee_int_buf[0];
 		  info = xbee_int_buf[1];
 		  button1 = info%2;
 		  button2 = (info%4 - button1)/2;
+		  if(button1){
+			  buzzer_play_melody;
+		  }
 		  if(info>>7){
 			  rot_val = (int8_t)((info & 0b01111100)>>2);
 		  }else{
