@@ -83,13 +83,19 @@ uint8_t indx = 0;
 uint8_t xbee_byte;
 uint8_t uart_buffer[32];
 uint8_t xbee_int_buf[2];
+uint8_t batt_dir;
 volatile uint8_t xbee_int_ready = 0;
+volatile uint8_t got_16_min = 0;
+volatile uint8_t new_batt = 0;
+
+uint8_t batt_level = 10;
 uint8_t r = 0;
 
 enum {
     FIRST_WAIT,
 	SECOND_WAIT,
-    READ_PAYLOAD
+    READ_PAYLOAD,
+	BATT_DIR
 } xbee_state = FIRST_WAIT;
 
 // FOR LCD
@@ -235,39 +241,17 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     		break;
     	case READ_PAYLOAD:
 			uart_buffer[indx++] = xbee_byte;
-			printf("%d: %d\n\r", indx, xbee_byte);
-
-
-			// process it to raw_frame as soon as we get a byte!!
-//			uint8_t val1 = (xbee_byte >> 4) & 0x0F;
-//			uint8_t val2 = (xbee_byte & 0x0F);
-//
-//			uint8_t row = indx/4;
-//			uint8_t col1 = 2*(indx%4);
-//			uint8_t col2 = 1+2*(indx%4);
-//			if (raw_frame[row][col1] != val1) {
-//				draw_queue[row][col1] = true;
-//				raw_frame[row][col1] = val1;
-//			} else {
-//				draw_queue[row][col1] = false;
-//			}
-//
-//			if (raw_frame[row][col2] != val2) {
-//				draw_queue[row][col2] = true;
-//				raw_frame[row][col2] = val2;
-//			} else {
-//				draw_queue[row][col2] = false;
-//			}
-//
-//
-//			indx++;
-
+//			printf("%d: %d\n\r", indx, xbee_byte);
 
 			if(indx == 32){
-				xbee_int_ready = 1;
-				xbee_state = FIRST_WAIT;
+				xbee_state = BATT_DIR;
 			}
 			break;
+    	case BATT_DIR:
+    		batt_dir = xbee_byte;
+
+    		xbee_int_ready = 1;
+    		xbee_state = FIRST_WAIT;
     	}
     }
 
@@ -376,41 +360,41 @@ void interpolate8x8_to_40x40(void)
     }
 }
 
-void ST7735_DrawBlock(int x, int y, int size, uint16_t color)
-{
-  for (int j = 0; j < size; j++) {
-	  for (int i = 0; i < size; i++) {
-		  ST7735_DrawPixel(x + i, y + j, color);
-	  }
-  }
-}
+//void ST7735_DrawBlock(int x, int y, int size, uint16_t color)
+//{
+//  for (int j = 0; j < size; j++) {
+//	  for (int i = 0; i < size; i++) {
+//		  ST7735_DrawPixel(x + i, y + j, color);
+//	  }
+//  }
+//}
 
 void ST7735_DrawFullGrid(void)
 {
     ST7735_SetAddrWindow(30, 0, 93, 63);
 
-    static uint8_t buf[8 * 8 * CELL_SIZE * CELL_SIZE * 2];
-
-    // 8×8 cells, each 2×2, each pixel 2 bytes → 8*8*4*2 = 1024 bytes
-
+    static uint8_t buf[64 * 64 * 2];
     int ptr = 0;
-    for(int y = 0; y < 64; y++) {
-        int gy = y / CELL_SIZE;
-        for(int x = 0; x < 64; x++) {
-            int gx = x / CELL_SIZE;
 
-            uint16_t color = heatmap_rgb[raw_frame[gy][gx]];
-            buf[ptr++] = color >> 8; // MSB
-            buf[ptr++] = color & 0xFF; // LSB
-        }
+    for (int i = 0; i < 4096; i++) {   // 64×64 = 4096 pixels
+        int y = i >> 6;               // divide by 64
+        int x = i & 63;               // modulo 64
+
+        int gy = y >> 3;              // y / 8  (CELL_SIZE=8 → shift 3)
+        int gx = x >> 3;              // x / 8
+
+        uint8_t level = raw_frame[gy][gx];
+        uint16_t color = heatmap_rgb[level];
+
+        buf[ptr++] = color >> 8;
+        buf[ptr++] = color & 0xFF;
     }
+
     ST7735_DC_HIGH();
     ST7735_CS_LOW();
     HAL_SPI_Transmit(&hspi1, buf, ptr, 10);
     ST7735_CS_HIGH();
-//    printf("ptr = %d\n", ptr);
 }
-
 /* USER CODE END 0 */
 
 /**
@@ -469,7 +453,12 @@ int main(void)
    ST7735_Init(&hspi1);
 
    HAL_Delay(1000);
-   ST7735_FillScreen(RED);
+//   ST7735_FillScreen(RED);
+
+   ST7735_SetCursor(25, 65);
+   ST7735_WriteString("BATT:", Font_11x18, WHITE);
+   ST7735_SetCursor(25, 115);
+   ST7735_WriteString("DIR: ", Font_11x18, WHITE);
 
 
 
@@ -485,25 +474,55 @@ int main(void)
     /* USER CODE END WHILE */
     /* USER CODE BEGIN 3 */
 
-	  	 if(xbee_int_ready){
-	  		 xbee_int_ready = 0;
-	  		printf("xbee ready: %d", !xbee_int_ready);
+
+	  	 if (xbee_int_ready) {
+	  		xbee_int_ready = 0;
 	  		for (int i = 0; i < 32; i++) {
+	  			uint8_t byte = uart_buffer[i];
+	  			uint8_t val1 = (byte >> 4) & 0x0F;
+	  			uint8_t val2 = byte & 0x0F;
 
-				  uint8_t byte = uart_buffer[i];
-				  uint8_t val1 = (byte >> 4) & 0x0F;
-				  uint8_t val2 = (byte & 0x0F);
-
-				  raw_frame[i/4][2*(i%4)] = val1;
-				  raw_frame[i/4][1+2*(i%4)] = val2;
-				  printf("xbee buffer: %d", uart_buffer[i]);
-			  }
-
+	  			raw_frame[i/4][2*(i%4)] = val1;
+	  			raw_frame[i/4][1+2*(i%4)] = val2;
+	  		}
 	  		for (int i = 0; i < 8; i++) {
 				printf("%d %d  %d %d  %d %d  %d %d\n\r", raw_frame[i][0], raw_frame[i][1], raw_frame[i][2], raw_frame[i][3], raw_frame[i][4], raw_frame[i][5], raw_frame[i][6], raw_frame[i][7]);
 			}
-
 	  		ST7735_DrawFullGrid();
+
+			ST7735_SetCursor(25, 85);
+			uint8_t new_batt_level = (batt_dir & 0b1110000) >> 4;
+			if (new_batt_level != batt_level) {
+				switch (new_batt_level) {
+					case 0:
+						ST7735_WriteString("0", Font_11x18, WHITE);
+						break;
+					case 1:
+						ST7735_WriteString("20", Font_11x18, WHITE);
+						break;
+					case 2:
+						ST7735_WriteString("40", Font_11x18, WHITE);
+						break;
+					case 3:
+						ST7735_WriteString("60", Font_11x18, WHITE);
+						break;
+					case 4:
+						ST7735_WriteString("80", Font_11x18, WHITE);
+						break;
+					case 5:
+						ST7735_WriteString("100", Font_11x18, WHITE);
+						break;
+					default:
+						ST7735_WriteString("0", Font_11x18, WHITE);
+						break;
+				}
+			}
+			uint8_t right_mov = (batt_dir & 0b1100) >> 2;
+			uint8_t left_mov = batt_dir & 0b11;
+
+
+
+
 	  	 }
 	  	  // Simple test: cycle colors so you KNOW the TFT works
 //	  	  ST7735_FillScreen(RED);
@@ -525,7 +544,7 @@ int main(void)
 //	             raw_frame[i][j] = (i * 2 + j) & 0x0F;  // values 0..15
 //	         }
 //	     }
-	     ST7735_DrawFullGrid();
+//	     ST7735_DrawFullGrid();
 //	     HAL_Delay(200);
 //	  	 HAL_Delay(100);
   }
