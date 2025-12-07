@@ -512,7 +512,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  buzzer_play_melody();
+//	  buzzer_play_melody();
 	  float batt = batteryValue();
 	  float percent = batteryPercent(batt);
 	  printf("battery value: %f\r\n", batt);
