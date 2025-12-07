@@ -100,8 +100,7 @@ enum {
 
 // FOR LCD
 uint8_t raw_frame[8][8];
-uint8_t new_frame[16][16];
-bool draw_queue[16][16];
+//bool draw_queue[8][8];
 
 #define CELL_SIZE  8
 
@@ -242,7 +241,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     		break;
     	case READ_PAYLOAD:
 			uart_buffer[indx++] = xbee_byte;
-			printf("%d: %d\n\r", indx, xbee_byte);
+//			printf("%d: %d\n\r", indx, xbee_byte);
 
 			if(indx == 32){
 				xbee_state = BATT_DIR;
@@ -327,49 +326,6 @@ void interpolate8x8_to_32x32(void)
     }
 }
 
-void interpolate8x8_to_16x16(void)
-{
-    for (int y = 0; y < 16; y++) {
-        float gy = ((float)y) / 2.0f;   // 32/8 = scale factor 4
-        int y0 = (int)gy;
-        float dy = gy - y0;
-        int y1 = (y0 < 7) ? y0 + 1 : y0;
-
-        for (int x = 0; x < 16; x++) {
-            float gx = ((float)x) / 2.0f;
-            int x0 = (int)gx;
-
-            float dx = gx - x0;
-            int x1 = (x0 < 7) ? x0 + 1 : x0;
-
-            float v00 = raw_frame[y0][x0];
-            float v01 = raw_frame[y0][x1];
-            float v10 = raw_frame[y1][x0];
-            float v11 = raw_frame[y1][x1];
-
-            float v0 = v00 + dx * (v01 - v00);
-            float v1 = v10 + dx * (v11 - v10);
-            uint8_t v = (uint8_t)(v0 + dy * (v1 - v0) + 0.2f);
-
-            if (v != new_frame[y][x]) {
-				draw_queue[y][x] = true;
-				new_frame[y][x] = v;
-			} else {
-				draw_queue[y][x] = false;
-			}
-
-
-
-
-//            if (v != image_frame[y][x]) {
-//                draw_queue[y][x] = true;
-//            } else {
-//                draw_queue[y][x] = false;
-//            }
-        }
-    }
-}
-
 void interpolate8x8_to_40x40(void)
 {
     for (int y = 0; y < 40; y++) {
@@ -394,11 +350,11 @@ void interpolate8x8_to_40x40(void)
             float v1 = v10 + dx * (v11 - v10);
             uint8_t v = (uint8_t)(v0 + dy * (v1 - v0) + 0.5f);
 //
-//            if (v != new_frame[y][x]) {
+//            if (v != image_frame[y][x]) {
 //                draw_queue[y][x] = true;
 //            } else {
 //                draw_queue[y][x] = false;
-//
+
 //            }
         }
     }
@@ -460,8 +416,8 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-  memset(new_frame, 0, sizeof(new_frame));
-  memset(draw_queue, 0, sizeof(draw_queue));
+//  memset(raw_frame, 0, sizeof(raw_frame));
+//  memset(draw_queue, 0, sizeof(draw_queue));
 
   /* USER CODE END Init */
 
@@ -529,20 +485,10 @@ int main(void)
 	  			raw_frame[i/4][2*(i%4)] = val1;
 	  			raw_frame[i/4][1+2*(i%4)] = val2;
 	  		}
-
-//	  		for (int i = 0; i < 8; i++) {
-//				printf("%d %d  %d %d  %d %d  %d %d\n\r", raw_frame[i][0], raw_frame[i][1], raw_frame[i][2], raw_frame[i][3], raw_frame[i][4], raw_frame[i][5], raw_frame[i][6], raw_frame[i][7]);
-//			}
-//	  		ST7735_DrawFullGrid();
-
-	  		interpolate8x8_to_16x16();
-	  		for (int i = 0; i < 16; i++) {
-	  			for (int j = 0; j < 16; j++) {
-	  				if (draw_queue[i][j]) {
-	  					ST7735_DrawBlock(30 + i*3, j*3, 3, heatmap_rgb[new_frame[i][j]]);
-	  				}
-	  			}
-	  		}
+	  		for (int i = 0; i < 8; i++) {
+				printf("%d %d  %d %d  %d %d  %d %d\n\r", raw_frame[i][0], raw_frame[i][1], raw_frame[i][2], raw_frame[i][3], raw_frame[i][4], raw_frame[i][5], raw_frame[i][6], raw_frame[i][7]);
+			}
+	  		ST7735_DrawFullGrid();
 
 			ST7735_SetCursor(25, 85);
 			uint8_t new_batt_level = (batt_dir & 0b1110000) >> 4;
@@ -571,15 +517,36 @@ int main(void)
 						break;
 				}
 			}
-			uint8_t new_right_mov = (batt_dir & 0b1100) >> 2;
-			uint8_t new_left_mov = batt_dir & 0b11;
-
-
+			uint8_t right_mov = (batt_dir & 0b1100) >> 2;
+			uint8_t left_mov = batt_dir & 0b11;
 
 
 
 
 	  	 }
+	  	  // Simple test: cycle colors so you KNOW the TFT works
+//	  	  ST7735_FillScreen(RED);
+//	  	  printf("Fill RED\r\n");
+//	  	  HAL_Delay(500);
+//	  	  ST7735_FillScreen(GREEN);
+//	  	  printf("Fill GREEN\r\n");
+//	  	  HAL_Delay(500);
+//	  	  ST7735_FillScreen(BLUE);
+//	  	  printf("Fill BLUE\r\n");
+//	  	  HAL_Delay(500);
+//	  	  ST7735_FillScreen(BLACK);
+//	  	  printf("Fill BLACK\r\n");
+//
+//	  	  HAL_Delay(500);
+	     // Fake heatmap data: gradient pattern
+//	     for (int i = 0; i < 8; i++) {
+//	         for (int j = 0; j < 8; j++) {
+//	             raw_frame[i][j] = (i * 2 + j) & 0x0F;  // values 0..15
+//	         }
+//	     }
+//	     ST7735_DrawFullGrid();
+//	     HAL_Delay(200);
+//	  	 HAL_Delay(100);
   }
   /* USER CODE END 3 */
 }
