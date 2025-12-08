@@ -1,19 +1,35 @@
 /* USER CODE BEGIN Header */
+
 /**
+
   ******************************************************************************
+
   * @file           : main.c
+
   * @brief          : Main program body
+
   ******************************************************************************
+
   * @attention
+
   *
+
   * Copyright (c) 2025 STMicroelectronics.
+
   * All rights reserved.
+
   *
+
   * This software is licensed under terms that can be found in the LICENSE file
+
   * in the root directory of this software component.
+
   * If no LICENSE file comes with this software, it is provided AS-IS.
+
   *
+
   ******************************************************************************
+
   */
 
 /* USER CODE END Header */
@@ -67,18 +83,26 @@ uint8_t indx = 0;
 uint8_t xbee_byte;
 uint8_t uart_buffer[32];
 uint8_t xbee_int_buf[2];
+uint8_t batt_dir;
 volatile uint8_t xbee_int_ready = 0;
+volatile uint8_t got_16_min = 0;
+volatile uint8_t new_batt = 0;
+volatile uint8_t right_mov = 0b111;
+volatile uint8_t left_mov = 0b111;
+
+uint8_t batt_level = 10;
 uint8_t r = 0;
 
 enum {
     FIRST_WAIT,
 	SECOND_WAIT,
-    READ_PAYLOAD
+    READ_PAYLOAD,
+	BATT_DIR
 } xbee_state = FIRST_WAIT;
 
 // FOR LCD
 uint8_t raw_frame[8][8];
-//bool draw_queue[8][8];
+bool draw_queue[8][8];
 
 #define CELL_SIZE  8
 
@@ -94,15 +118,20 @@ static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 
+
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
 void MX_NVIC_Init(void)
 {
     HAL_NVIC_SetPriority(USART1_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(USART1_IRQn);
 }
+
+
 
 int xbee_readline(char *buf, int maxlen)
 {
@@ -120,8 +149,13 @@ int xbee_readline(char *buf, int maxlen)
 
 }
 
+
+
 void xbee_send(const char* cmd) {
+
 	uint8_t resp[8];
+	HAL_StatusTypeDef st;
+
 
 	HAL_UART_Transmit(&huart1, (uint8_t*)cmd, strlen(cmd), 100);
 	HAL_UART_Transmit(&huart1, (uint8_t*)"\r", 1, 100);
@@ -129,9 +163,14 @@ void xbee_send(const char* cmd) {
 
 	HAL_UART_Receive(&huart1, resp, 3, 1000);
 	printf("resp: %s\r", resp);
+
 }
 
-uint8_t xbee_enter_command(void) {
+
+
+uint8_t xbee_enter_command(void)
+
+{
     uint8_t resp[8];
     HAL_StatusTypeDef st;
 
@@ -151,9 +190,13 @@ uint8_t xbee_enter_command(void) {
         return 1;
     else
         return 0;
+
 }
 
+
+
 void xbee_router_setup() {
+
 	if(xbee_enter_command()) {
 		xbee_send("ATID 2222");
 		xbee_send("ATCH 17");
@@ -161,17 +204,26 @@ void xbee_router_setup() {
 		xbee_send("ATDL 1");
 		xbee_send("ATWR");
 		xbee_send("ATCN");
+
 	}
+
 	else {
 		printf("xbee router setup failed! \r\n");
 		for(int i=0; i<32; i++){
 		    printf("%02X ", uart_buffer[i]);
 		}
+
 		printf("\n");
 	}
+
 }
 
+
+
+
+
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+
     if (huart == &huart1) {
 //    	printf("XBEE RECEIVED!! %d\n", indx);
 //    	printf("%02X ", xbee_byte);
@@ -191,37 +243,17 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     		break;
     	case READ_PAYLOAD:
 			uart_buffer[indx++] = xbee_byte;
-			printf("%d: %d\n\r", indx, xbee_byte);
-
-			// process it to raw_frame as soon as we get a byte!!
-//			uint8_t val1 = (xbee_byte >> 4) & 0x0F;
-//			uint8_t val2 = (xbee_byte & 0x0F);
-//
-//			uint8_t row = indx/4;
-//			uint8_t col1 = 2*(indx%4);
-//			uint8_t col2 = 1+2*(indx%4);
-//			if (raw_frame[row][col1] != val1) {
-//				draw_queue[row][col1] = true;
-//				raw_frame[row][col1] = val1;
-//			} else {
-//				draw_queue[row][col1] = false;
-//			}
-//
-//			if (raw_frame[row][col2] != val2) {
-//				draw_queue[row][col2] = true;
-//				raw_frame[row][col2] = val2;
-//			} else {
-//				draw_queue[row][col2] = false;
-//			}
-//
-//
-//			indx++;
+//			printf("%d: %d\n\r", indx, xbee_byte);
 
 			if(indx == 32){
-				xbee_int_ready = 1;
-				xbee_state = FIRST_WAIT;
+				xbee_state = BATT_DIR;
 			}
 			break;
+    	case BATT_DIR:
+    		batt_dir = xbee_byte;
+
+    		xbee_int_ready = 1;
+    		xbee_state = FIRST_WAIT;
     	}
     }
 
@@ -229,9 +261,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     if (HAL_UART_Receive_IT(&huart1, &xbee_byte, 1) != HAL_OK) {
         printf("Failed to restart UART reception!\n");
     }
+
 }
 
-void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart) {
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+
+{
     if (huart == &huart1) {
     	HAL_UART_Receive_IT(&huart1, &xbee_byte, 1);
     }
@@ -240,49 +275,26 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart) {
 // =======================================
 // THIS IS FOR MULTI-COLOR DISPLAY
 // =======================================
+
 static const uint16_t heatmap_rgb[16] = {
-    0x001F, // Deep Blue
-    0x101F, // Blue
-    0x401F, // Blue-Purple
-    0x781F, // Purple
-    0xF81F, // Magenta
-    0xF801, // Magenta→Red
-    0xF800, // Red
-    0xFC00, // Orange-Red
-    0xFE00, // Orange
-    0xFF00, // Yellow-Orange
-    0xFFE0, // Yellow
-    0xFFF0, // Light Yellow
-    0xFFFF, // Near White
-    0xFFFF, // White
-    0xFFFF, // White
-    0xFFFF  // Pure White
+		// RRRRR GGGGGG BBBBB
+	0b0000000000010000, // Deep Blue       (dark blue)
+	0b0000000000011000, // Blue            (full blue)
+	0b1000000000011100, // Blue-Purple     (some red + full blue)
+	0b1100000000011000, // Purple          (more red + full blue)
+	0b1110000000010000, // Magenta         (full red + full blue)
+	0b1111000000001000, // Magenta→Red     (red with a little blue)
+	0b1111100000000100, // Red             (full red)
+	0b1111110000000010, // Orange-Red      (red + small green)
+	0b1110010000000100, // Orange          (red + more green)
+	0b1100011000001000, // Yellow-Orange   (red + even more green)
+	0b1100011100010000,
+	0b1100011110011100, // Near White      (very light gray/white-ish)
+	0b1100011111111100, // Yellow
+	0b1110011111111100, // White
+	0b1111011111111110, // White
+	0xFFFF  // Pure White
 };
-//testing
-void ST7735_DrawFullGrid(void) {
-    ST7735_SetAddrWindow(30, 0, 93, 63);
-
-    static uint8_t buf[8 * 8 * CELL_SIZE * CELL_SIZE * 2];
-
-    // 8×8 cells, each 2×2, each pixel 2 bytes → 8*8*4*2 = 1024 bytes
-
-    int ptr = 0;
-    for(int y = 0; y < 64; y++) {
-        int gy = y / CELL_SIZE;
-        for(int x = 0; x < 64; x++) {
-            int gx = x / CELL_SIZE;
-
-            uint16_t color = heatmap_rgb[raw_frame[gy][gx]];
-            buf[ptr++] = color >> 8; // MSB
-            buf[ptr++] = color & 0xFF; // LSB
-        }
-    }
-    ST7735_DC_HIGH();
-    ST7735_CS_LOW();
-    HAL_SPI_Transmit(&hspi1, buf, ptr, 10);
-    ST7735_CS_HIGH();
-//    printf("ptr = %d\n", ptr);
-}
 
 void interpolate8x8_to_32x32(void)
 {
@@ -307,6 +319,7 @@ void interpolate8x8_to_32x32(void)
             float v0 = v00 + dx * (v01 - v00);
             float v1 = v10 + dx * (v11 - v10);
             uint8_t v = (uint8_t)(v0 + dy * (v1 - v0) + 0.5f);
+
 //            if (v != image_frame[y][x]) {
 //                draw_queue[y][x] = true;
 //            } else {
@@ -344,11 +357,47 @@ void interpolate8x8_to_40x40(void)
 //                draw_queue[y][x] = true;
 //            } else {
 //                draw_queue[y][x] = false;
+
 //            }
         }
     }
 }
 
+//void ST7735_DrawBlock(int x, int y, int size, uint16_t color)
+//{
+//  for (int j = 0; j < size; j++) {
+//	  for (int i = 0; i < size; i++) {
+//		  ST7735_DrawPixel(x + i, y + j, color);
+//	  }
+//  }
+//}
+
+void ST7735_DrawFullGrid(void)
+{
+    ST7735_SetAddrWindow(30, 0, 93, 63);
+
+    static uint8_t buf[64 * 64 * 2];
+    int ptr = 0;
+
+    for (int i = 0; i < 4096; i++) {   // 64×64 = 4096 pixels
+        int y = i >> 6;               // divide by 64
+        int x = i & 63;               // modulo 64
+
+        int gy = y >> 3;              // y / 8  (CELL_SIZE=8 → shift 3)
+        int gx = x >> 3;              // x / 8
+
+        uint8_t level = raw_frame[gy][gx];
+        uint16_t color = heatmap_rgb[level];
+
+        buf[ptr++] = color >> 8;
+        buf[ptr++] = color & 0xFF;
+    }
+
+    ST7735_DC_HIGH();
+    ST7735_CS_LOW();
+    HAL_SPI_Transmit(&hspi1, buf, ptr, 10);
+    ST7735_CS_HIGH();
+}
 /* USER CODE END 0 */
 
 /**
@@ -357,52 +406,65 @@ void interpolate8x8_to_40x40(void)
   */
 int main(void)
 {
-	/* USER CODE BEGIN 1 */
 
-	/* USER CODE END 1 */
+  /* USER CODE BEGIN 1 */
 
-	/* MCU Configuration--------------------------------------------------------*/
 
-	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-	HAL_Init();
 
-	/* USER CODE BEGIN Init */
-	//  memset(raw_frame, 0, sizeof(raw_frame));
-	//  memset(draw_queue, 0, sizeof(draw_queue));
+  /* USER CODE END 1 */
 
-	/* USER CODE END Init */
+  /* MCU Configuration--------------------------------------------------------*/
 
-	/* Configure the system clock */
-	SystemClock_Config();
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
 
-	/* USER CODE BEGIN SysInit */
-	MX_NVIC_Init();
-	/* USER CODE END SysInit */
+  /* USER CODE BEGIN Init */
+  memset(raw_frame, 0, sizeof(raw_frame));
+  memset(draw_queue, 0, sizeof(draw_queue));
 
-	/* Initialize all configured peripherals */
-	MX_GPIO_Init();
-	MX_LPUART1_UART_Init();
-	MX_USART1_UART_Init();
-	MX_I2C1_Init();
-	MX_SPI1_Init();
+  /* USER CODE END Init */
+
+  /* Configure the system clock */
+  SystemClock_Config();
+
+  /* USER CODE BEGIN SysInit */
+
+  MX_NVIC_Init();
+
+  /* USER CODE END SysInit */
+
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_LPUART1_UART_Init();
+  MX_USART1_UART_Init();
+  MX_I2C1_Init();
+  MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
-	xbee_router_setup();
-	printf("\r\nBOOT\r\n");
 
-	HAL_Delay(1000);
+  HAL_Delay(1000);
+  HAL_UART_Receive_IT(&huart1, &xbee_byte, 1);
+  printf("UART1 RX IT started\r\n");
+
+  HAL_Delay(1000);
+  ST7735_Init(&hspi1);
+  printf("ST7735 init done\r\n");
+
+  HAL_Delay(1000);
 	HAL_UART_Receive_IT(&huart1, &xbee_byte, 1);
-	printf("UART1 RX IT started\r\n");
-
 	HAL_Delay(1000);
-	ST7735_Init(&hspi1);
-	printf("ST7735 init done\r\n");
 
-	HAL_Delay(1000);
-	HAL_UART_Receive_IT(&huart1, &xbee_byte, 1);
-	ST7735_FillScreen(BLACK);
-//	HAL_Delay(1000);
-//
-//	ST7735_Init(&hspi1);
+   ST7735_Init(&hspi1);
+
+   HAL_Delay(1000);
+//   ST7735_FillScreen(RED);
+
+   ST7735_SetCursor(25, 65);
+   ST7735_WriteString("BATT:", Font_11x18, WHITE);
+   ST7735_SetCursor(25, 115);
+   ST7735_WriteString("DIR: ", Font_11x18, WHITE);
+
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -415,27 +477,133 @@ int main(void)
     /* USER CODE END WHILE */
     /* USER CODE BEGIN 3 */
 
-	 if(xbee_int_ready){
-		 xbee_int_ready = 0;
-		printf("xbee ready: %d", !xbee_int_ready);
-		for (int i = 0; i < 32; i++) {
 
-			  uint8_t byte = uart_buffer[i];
-			  uint8_t val1 = (byte >> 4) & 0x0F;
-			  uint8_t val2 = (byte & 0x0F);
+	  	 if (xbee_int_ready) {
+	  		xbee_int_ready = 0;
+	  		for (int i = 0; i < 32; i++) {
+	  			uint8_t byte = uart_buffer[i];
+	  			uint8_t val1 = (byte >> 4) & 0x0F;
+	  			uint8_t val2 = byte & 0x0F;
 
-			  raw_frame[i/4][2*(i%4)] = val1;
-			  raw_frame[i/4][1+2*(i%4)] = val2;
-			  printf("xbee buffer: %d", uart_buffer[i]);
-		  }
+	  			uint8_t row = i/4;
+	  			uint8_t col1 = 2*(i%4);
+	  			uint8_t col2 = 1+2*(i%4);
+	  			if (val1 != raw_frame[row][col1]) {
+	  				raw_frame[row][col1] = val1;
+	  				draw_queue[row][col1] = true;
+	  			} else {
+	  				draw_queue[row][col1] = false;
+	  			}
 
-		for (int i = 0; i < 8; i++) {
-			printf("%d %d  %d %d  %d %d  %d %d\n\r", raw_frame[i][0], raw_frame[i][1], raw_frame[i][2], raw_frame[i][3], raw_frame[i][4], raw_frame[i][5], raw_frame[i][6], raw_frame[i][7]);
-		}
+	  			if (val2 != raw_frame[row][col2]) {
+					raw_frame[row][col2] = val2;
+					draw_queue[row][col2] = true;
+				} else {
+					draw_queue[row][col2] = false;
+				}
+//	  			raw_frame[row][col1] = val1;
+//	  			raw_frame[row][col2] = val2;
+	  		}
+	  		for (int i = 0; i < 8; i++) {
+				printf("%d %d  %d %d  %d %d  %d %d\n\r", raw_frame[i][0], raw_frame[i][1], raw_frame[i][2], raw_frame[i][3], raw_frame[i][4], raw_frame[i][5], raw_frame[i][6], raw_frame[i][7]);
+			}
+//	  		ST7735_DrawFullGrid();
+//	  		ST7735_SetAddrWindow(30, 0, 93, 63);
+	  		for (int i = 0; i < 8; i++) {
+	  			for (int j = 0; j < 8; j++) {
+	  				if (draw_queue[i][j]) {
+	  					ST7735_DrawBlock(30 + i*8, j*8, 8, heatmap_rgb[raw_frame[i][j]]);
+	  				}
+	  			}
+	  		}
 
-		ST7735_DrawFullGrid();
-	 }
-	  // Simple test: cycle colors so you KNOW the TFT works
+			uint8_t new_batt_level = (batt_dir & 0b1110000) >> 4;
+			if (new_batt_level != batt_level) {
+				ST7735_DrawBlock(25, 85, 18, 0x0000);
+				ST7735_DrawBlock(43, 85, 18, 0x0000);
+				ST7735_DrawBlock(61, 85, 18, 0x0000);
+
+				ST7735_SetCursor(25, 85);
+
+				switch (new_batt_level) {
+					case 0:
+						ST7735_WriteChar('0', Font_11x18, WHITE);
+						break;
+					case 1:
+						ST7735_WriteString("20", Font_11x18, WHITE);
+						break;
+					case 2:
+						ST7735_WriteString("40", Font_11x18, WHITE);
+						break;
+					case 3:
+						ST7735_WriteString("60", Font_11x18, WHITE);
+						break;
+					case 4:
+						ST7735_WriteString("80", Font_11x18, WHITE);
+						break;
+					case 5:
+						ST7735_WriteString("100", Font_11x18, WHITE);
+						break;
+					default:
+						ST7735_WriteChar('0', Font_11x18, WHITE);
+						break;
+				}
+
+				batt_level = new_batt_level;
+			}
+			uint8_t new_right_mov = (batt_dir & 0b1100) >> 2;
+			uint8_t new_left_mov = batt_dir & 0b11;
+
+			if (new_right_mov != right_mov || new_left_mov != left_mov) {
+				ST7735_DrawBlock(70, 115, 18, 0x0000);
+				ST7735_SetCursor(70, 115);
+				switch(new_left_mov) {
+					case 0b00:
+						switch (new_right_mov) {
+							case 0b00: ST7735_WriteChar('S', Font_11x18, WHITE); break;
+							case 0b01: ST7735_WriteChar('L', Font_11x18, WHITE); break;
+							case 0b10: ST7735_WriteChar('R', Font_11x18, WHITE); break;
+							default: ST7735_WriteChar('S', Font_11x18, WHITE); break;
+						}
+						break;
+					case 0b01:
+						switch (new_right_mov) {
+							case 0b00: ST7735_WriteChar('R', Font_11x18, WHITE); break;
+							case 0b01: ST7735_WriteChar('F', Font_11x18, WHITE); break;
+							case 0b10: ST7735_WriteChar('R', Font_11x18, WHITE); break;
+							default: ST7735_WriteChar('S', Font_11x18, WHITE); break;
+						}
+						break;
+					case 0b10:
+						switch (new_right_mov) {
+							case 0b00: ST7735_WriteChar('L', Font_11x18, WHITE); break;
+							case 0b01: ST7735_WriteChar('L', Font_11x18, WHITE); break;
+							case 0b10: ST7735_WriteChar('B', Font_11x18, WHITE); break;
+							default: ST7735_WriteChar('S', Font_11x18, WHITE); break;
+						}
+						break;
+					default:
+						switch (new_right_mov) {
+							case 0b00: ST7735_WriteChar('S', Font_11x18, WHITE); break;
+							case 0b01: ST7735_WriteChar('L', Font_11x18, WHITE); break;
+							case 0b10: ST7735_WriteChar('R', Font_11x18, WHITE); break;
+							default: ST7735_WriteChar('S', Font_11x18, WHITE); break;
+						}
+						break;
+				}
+				right_mov = new_right_mov;
+				left_mov = new_left_mov;
+			}
+
+
+
+	  	 }
+
+//	  for (int i = 0; i < 16; i++) {
+//		  ST7735_FillScreen(heatmap_rgb[i]);
+//		  HAL_Delay(500);
+//	  }
+	  	  // Simple test: cycle colors so you KNOW the TFT works
 //	  	  ST7735_FillScreen(RED);
 //	  	  printf("Fill RED\r\n");
 //	  	  HAL_Delay(500);
@@ -449,20 +617,15 @@ int main(void)
 //	  	  printf("Fill BLACK\r\n");
 //
 //	  	  HAL_Delay(500);
-	 // Fake heatmap data: gradient pattern
+	     // Fake heatmap data: gradient pattern
 //	     for (int i = 0; i < 8; i++) {
 //	         for (int j = 0; j < 8; j++) {
 //	             raw_frame[i][j] = (i * 2 + j) & 0x0F;  // values 0..15
 //	         }
 //	     }
-	 ST7735_SetCursor(25, 65);
-//	 ST7735_SetAddrWindow(25, 65, 125, 75);
-	 ST7735_WriteString("BATT:", Font_11x18, WHITE);
-	 ST7735_SetCursor(25, 115);
-//	 ST7735_SetAddrWindow(25, 75, 125, 85);
-	 ST7735_WriteString("DIR: ", Font_11x18, WHITE);
-	 ST7735_DrawFullGrid();
-	 HAL_Delay(100);
+//	     ST7735_DrawFullGrid();
+//	     HAL_Delay(200);
+//	  	 HAL_Delay(100);
   }
   /* USER CODE END 3 */
 }
@@ -473,42 +636,42 @@ int main(void)
   */
 void SystemClock_Config(void)
 {
-	RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-	RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
-	/** Configure the main internal regulator output voltage
-	*/
-	if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1) != HAL_OK)
-	{
-	Error_Handler();
-	}
+  /** Configure the main internal regulator output voltage
+  */
+  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1) != HAL_OK)
+  {
+    Error_Handler();
+  }
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
-	RCC_OscInitStruct.MSIState = RCC_MSI_ON;
-	RCC_OscInitStruct.MSICalibrationValue = 0;
-	RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_10;
-	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
-	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-	{
-	Error_Handler();
-	}
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
+  RCC_OscInitStruct.MSIState = RCC_MSI_ON;
+  RCC_OscInitStruct.MSICalibrationValue = 0;
+  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_10;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
 
-	/** Initializes the CPU, AHB and APB buses clocks
-	*/
-	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-							  |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
-	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
-	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+  /** Initializes the CPU, AHB and APB buses clocks
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
-	{
-	Error_Handler();
-	}
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
 }
 
 /**
@@ -530,19 +693,19 @@ static void MX_I2C1_Init(void)
 
 
   /* USER CODE END I2C1_Init 1 */
-	hi2c1.Instance = I2C1;
-	hi2c1.Init.Timing = 0x00B07CB4;
-	hi2c1.Init.OwnAddress1 = 0;
-	hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
-	hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
-	hi2c1.Init.OwnAddress2 = 0;
-	hi2c1.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
-	hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
-	hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
-	if (HAL_I2C_Init(&hi2c1) != HAL_OK)
-	{
-		Error_Handler();
-	}
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.Timing = 0x00B07CB4;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
 
   /** Configure Analogue filter
   */
@@ -584,19 +747,19 @@ static void MX_LPUART1_UART_Init(void)
 
 
   /* USER CODE END LPUART1_Init 1 */
-	hlpuart1.Instance = LPUART1;
-	hlpuart1.Init.BaudRate = 115200;
-	hlpuart1.Init.WordLength = UART_WORDLENGTH_8B;
-	hlpuart1.Init.StopBits = UART_STOPBITS_1;
-	hlpuart1.Init.Parity = UART_PARITY_NONE;
-	hlpuart1.Init.Mode = UART_MODE_TX_RX;
-	hlpuart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-	hlpuart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
-	hlpuart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-	if (HAL_UART_Init(&hlpuart1) != HAL_OK)
-	{
-	Error_Handler();
-	}
+  hlpuart1.Instance = LPUART1;
+  hlpuart1.Init.BaudRate = 115200;
+  hlpuart1.Init.WordLength = UART_WORDLENGTH_8B;
+  hlpuart1.Init.StopBits = UART_STOPBITS_1;
+  hlpuart1.Init.Parity = UART_PARITY_NONE;
+  hlpuart1.Init.Mode = UART_MODE_TX_RX;
+  hlpuart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  hlpuart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  hlpuart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&hlpuart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE BEGIN LPUART1_Init 2 */
 
 
@@ -686,6 +849,8 @@ static void MX_SPI1_Init(void)
   }
   /* USER CODE BEGIN SPI1_Init 2 */
 
+
+
   /* USER CODE END SPI1_Init 2 */
 
 }
@@ -745,8 +910,8 @@ static void MX_GPIO_Init(void)
 #endif /* __GNUC__ */
 PUTCHAR_PROTOTYPE
 {
-	HAL_UART_Transmit(&hlpuart1, (uint8_t *)&ch, 1, 0xFFFF);
-	return ch;
+  HAL_UART_Transmit(&hlpuart1, (uint8_t *)&ch, 1, 0xFFFF);
+  return ch;
 }
 
 /* USER CODE END 4 */

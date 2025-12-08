@@ -387,6 +387,58 @@ float batteryValue(){
 
     return VBAT;
 }
+uint8_t batteryLevel(float vbat){
+//	float sum = 0;
+//	if (VBAT > 9.0){
+//		for (int i = 0; i < 500; i++){
+//			sum += 27.78 * VBAT - 250.0;
+//		}
+//		return sum / 500.0; //avg 500 samples
+//
+//	}
+//	else{
+//		return 0;
+	const float V_EMPTY = 9.0f;
+	    const float V_FULL  = 12.6f;
+	    if (vbat <= V_EMPTY) return 0;
+	    if (vbat >= V_FULL)  return 100;
+
+	    float pct_f = (vbat - V_EMPTY) * 100.0f / (V_FULL - V_EMPTY);
+	    if (pct_f < 0)   pct_f = 0;
+	    if (pct_f > 100) pct_f = 100;
+
+	    uint8_t pct = (uint8_t)(pct_f + 0.5f);
+
+	    static uint8_t level = 0;
+	    static uint8_t initialized = 0;
+
+	    // thresholds in % for each step
+	    // going UP:   15, 35, 55, 75, 95
+	    // going DOWN:  0, 25, 45, 65, 85
+	    static const uint8_t up[]   = {15, 35, 55, 75, 95};
+	    static const uint8_t down[] = { 0, 25, 45, 65, 85};
+
+	    if (!initialized) {
+	        if      (pct >= 90) level = 5;
+	        else if (pct >= 70) level = 4;
+	        else if (pct >= 50) level = 3;
+	        else if (pct >= 30) level = 2;
+	        else if (pct >= 10) level = 1;
+	        else                level = 0;
+	        initialized = 1;
+	    } else {
+	        if (level < 5 && pct > up[level]) {
+	            level++;
+	        } else if (level > 0 && pct < down[level - 1]) {
+	            level--;
+	        }
+    }
+	if (level < 0 || level > 5) {
+		level = 0;
+	}
+	return level;
+}
+
 uint8_t batteryPercent(float vbat){
 //	float sum = 0;
 //	if (VBAT > 9.0){
@@ -592,9 +644,9 @@ int main(void)
 	  buzzer_service();
 
 	  float batt = batteryValue();
-	  float percent = batteryPercent(batt);
+//	  float percent = batteryPercent(batt);
 	  printf("battery value: %f\r\n", batt);
-	  printf("battery percent: %f\r\n", percent);
+//	  printf("battery percent: %f\r\n", percent);
 
 //	  uint8_t temp_send[32];
 //	  float span  = T_MAX - T_MIN;
@@ -603,6 +655,8 @@ int main(void)
 //	  n1 *= gain;
 
 	  uint8_t temp_send[32];
+	  uint8_t batt_dir = batteryLevel(batt) &0b111 << 2;
+	  printf("battery level: %f\r\n", batt_dir);
 	  HAL_I2C_Master_Transmit(&hi2c1, SAD_IRCAM_W, &reg, 1, 1000);
 	  HAL_I2C_Master_Receive(&hi2c1, SAD_IRCAM_R, buf, 128, 1000);
 
@@ -661,19 +715,25 @@ int main(void)
 			  uint32_t right_pwm = (50000*(uint32_t)right_command)/3+70000;
 			  if(right_command == 0){
 				  motor_right_stop();
+				  batt_dir = (batt_dir | 0b00) << 2;
 			  }else if(right_dir){
 				  motor_right_forward(right_pwm);
+				  batt_dir = (batt_dir | 0b01) << 2;
 			  } else {
 				  motor_right_reverse(right_pwm);
+				  batt_dir = (batt_dir | 0b10) << 2;
 			  }
 
 			  uint32_t left_pwm = (50000*left_command)/3+70000;
 			  if(left_command == 0){
 				  motor_left_stop();
+				  batt_dir = batt_dir | 0b00;
 			  }else if(left_dir){
 				  motor_left_forward(left_pwm);
+				  batt_dir = batt_dir | 0b01;
 			  } else {
 				  motor_left_reverse(left_pwm);
+				  batt_dir = batt_dir | 0b10;
 			  }
 		  }
 	  }
@@ -684,24 +744,32 @@ int main(void)
 	  float T_MAX = 32.0f + (float)rot_val;
 
 	  for (int i = 0; i < 8; i++) {
-		  for (int j = 6; j >= 0; j -= 2) {
+	      for (int j = 0; j <= 6; j += 2) {   // flipped left-right
 
-			  uint16_t raw1 = (buf[i*16 + j*2 + 1] << 8) | buf[i*16 + j*2];
-			  if (raw1 > 2047) raw1 -= 4096;
-			  float t1 = raw1 * 0.25f;
+	          uint16_t raw1 = (buf[i*16 + j*2 + 1] << 8) | buf[i*16 + j*2];
+	          if (raw1 > 2047) raw1 -= 4096;
+	          float t1 = raw1 * 0.25f;
 
-			  if (t1 < T_MIN) t1 = T_MIN;
-			  int p1 = (int)(((t1-T_MIN) / (T_MAX-T_MIN)) * 15.0f);
+	          if (t1 < T_MIN) t1 = T_MIN;
+//	          int p1 = (int)(((t1 - T_MIN) / (T_MAX - T_MIN)) * 15.0f);
+	          float norm1 = (t1 - T_MIN) / (T_MAX - T_MIN);
+	          if (norm1 < 0) norm1 = 0;
+	          if (norm1 > 1) norm1 = 1;
+	          uint8_t p1 = (uint8_t)(norm1 * 15.0f + 0.5f);
 
-			  uint16_t raw2 = (buf[i*16 + (j+1)*2 + 1] << 8) | buf[i*16 + (j+1)*2];
-			  if (raw2 > 2047) raw2 -= 4096;
-			  float t2 = raw2 * 0.25f;
+	          uint16_t raw2 = (buf[i*16 + (j+1)*2 + 1] << 8) | buf[i*16 + (j+1)*2];
+	          if (raw2 > 2047) raw2 -= 4096;
+	          float t2 = raw2 * 0.25f;
 
-			  if (t2 < T_MIN) t2 = T_MIN;
-			  int p2 = (int)(((t2-T_MIN) / (T_MAX-T_MIN)) * 15.0f);
+	          if (t2 < T_MIN) t2 = T_MIN;
+//	          int p2 = (int)(((t2 - T_MIN) / (T_MAX - T_MIN)) * 15.0f);
+	          float norm2 = (t2 - T_MIN) / (T_MAX - T_MIN);
+	          if (norm2 < 0) norm2 = 0;
+	          if (norm2 > 1) norm2 = 1;
+	          uint8_t p2 = (uint8_t)(norm2 * 15.0f + 0.5f);
 
-			  temp_send[idx++] = (uint8_t)((p1 << 4) | (p2 & 0x0F));
-		  }
+	          temp_send[idx++] = (uint8_t)((p1 << 4) | (p2 & 0x0F));
+	      }
 	  }
 
 	  for (uint8_t i = 0; i < 32; i++) {
@@ -749,6 +817,7 @@ int main(void)
 		  if (frame_max_val < 4){
 			  motor_left_stop();
 			  motor_right_stop();
+			  batt_dir = ((batt_dir | 0b00) << 2) | 0b00;
 		  }else{
 			  if(-1<rotate_error && rotate_error<1){
 				  rotate_error = 0;
@@ -763,27 +832,31 @@ int main(void)
 			  float left_command = forward + steering;
 			  float right_command = forward - steering;
 
-
-			  if(left_command > 0){
-				  uint32_t rotate_pwm =	70000 + (uint32_t)(left_command);
-				  motor_left_forward(rotate_pwm);
-//				  printf("[debug] Left: PI: err=%.2f, integ=%.2f, steer=%.2f, pwm=%ld\r\n",
-//				  						  rotate_error, error_integral, steering, rotate_pwm);
-			  }else{
-				  uint32_t rotate_pwm =	70000 + (uint32_t)(-left_command);
-				  motor_left_reverse(rotate_pwm);
-//				  printf("[debug] Left: PI: err=%.2f, integ=%.2f, steer=%.2f, pwm=%ld\r\n",
-//						  rotate_error, error_integral, steering, rotate_pwm);
-			  }
 			  if(right_command > 0){
 				  uint32_t rotate_pwm =	70000 + (uint32_t)(right_command);
 				  motor_right_forward(rotate_pwm);
+				  batt_dir = (batt_dir | 0b01) << 2;
 //				  printf("[debug] Right: PI: err=%.2f, integ=%.2f, steer=%.2f, pwm=%ld\r\n",
 //						  rotate_error, error_integral, steering, rotate_pwm);
 			  }else{
 				  uint32_t rotate_pwm =	70000 + (uint32_t)(-right_command);
 				  motor_right_reverse(rotate_pwm);
+				  batt_dir = (batt_dir | 0b10) << 2;
 //				  printf("[debug] Right: PI: err=%.2f, integ=%.2f, steer=%.2f, pwm=%ld\r\n",
+//						  rotate_error, error_integral, steering, rotate_pwm);
+			  }
+
+			  if(left_command > 0){
+				  uint32_t rotate_pwm =	70000 + (uint32_t)(left_command);
+				  motor_left_forward(rotate_pwm);
+				  batt_dir = batt_dir | 0b01;
+//				  printf("[debug] Left: PI: err=%.2f, integ=%.2f, steer=%.2f, pwm=%ld\r\n",
+//				  						  rotate_error, error_integral, steering, rotate_pwm);
+			  }else{
+				  uint32_t rotate_pwm =	70000 + (uint32_t)(-left_command);
+				  motor_left_reverse(rotate_pwm);
+				  batt_dir = batt_dir | 0b10;
+//				  printf("[debug] Left: PI: err=%.2f, integ=%.2f, steer=%.2f, pwm=%ld\r\n",
 //						  rotate_error, error_integral, steering, rotate_pwm);
 			  }
 		  }
@@ -792,7 +865,8 @@ int main(void)
 	  if (!HAL_UART_Transmit(&huart4, temp_send, 32, 100) == HAL_OK) {
 		  printf("[debug] UART4 transmit failed\n");
 	  }
-//	  HAL_Delay(400);
+	  HAL_UART_Transmit(&huart4, &batt_dir, 1, 100);
+	  HAL_Delay(400);
   }
   /* USER CODE END 3 */
 }
