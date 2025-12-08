@@ -277,22 +277,21 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 // =======================================
 
 static const uint16_t heatmap_rgb[16] = {
-		// RRRRR GGGGGG BBBBB
-	0b0000000000010000, // Deep Blue       (dark blue)
-	0b0000000000011000, // Blue            (full blue)
-	0b1000000000011100, // Blue-Purple     (some red + full blue)
-	0b1100000000011000, // Purple          (more red + full blue)
-	0b1110000000010000, // Magenta         (full red + full blue)
-	0b1111000000001000, // Magenta→Red     (red with a little blue)
-	0b1111100000000100, // Red             (full red)
-	0b1111110000000010, // Orange-Red      (red + small green)
-	0b1110010000000100, // Orange          (red + more green)
-	0b1100011000001000, // Yellow-Orange   (red + even more green)
-	0b1100011100010000,
-	0b1100011110011100, // Near White      (very light gray/white-ish)
-	0b1100011111111100, // Yellow
-	0b1110011111111100, // White
-	0b1111011111111110, // White
+	0x001F, // Deep Blue
+	0x101F, // Blue
+	0x401F, // Blue-Purple
+	0x781F, // Purple
+	0xF81F, // Magenta
+	0xF801, // Magenta→Red
+	0xF800, // Red
+	0xFC00, // Orange-Red
+	0xFE00, // Orange
+	0xFF00, // Yellow-Orange
+	0xFFE0, // Yellow
+	0xFFF0, // Light Yellow
+	0xFFFF, // Near White
+	0xFFFF, // White
+	0xFFFF, // White
 	0xFFFF  // Pure White
 };
 
