@@ -51,9 +51,13 @@ UART_HandleTypeDef huart4;
 TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
+volatile uint8_t pe0_pressed = 0;
 volatile uint8_t pe9_pressed = 0;
 volatile uint8_t pe11_pressed = 0;
 volatile uint8_t pf13_pressed = 0;
+
+volatile uint8_t feature1 = 0;
+volatile uint8_t feature2 = 0;
 
 volatile uint8_t rot_sw = 0;
 
@@ -93,6 +97,11 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
     static uint32_t last_but = 0;
 
     switch(GPIO_Pin) {
+    case GPIO_PIN_0:
+		if (now - last_sw < 200) return;
+		last_sw = now;
+		pe0_pressed = 1;
+		break;
     case GPIO_PIN_1:
         if (now - last_sw < 200) return;
         last_sw = now;
@@ -281,7 +290,7 @@ int main(void)
   MX_UART4_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
-  xbee_coord_setup();
+//  xbee_coord_setup();
   HAL_Delay(1000);
   HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
 
@@ -327,10 +336,6 @@ int main(void)
 		  uart_buffer[0] &= 0b10111111;
 	  }
 //	  printf("command: %d \n", (uart_buffer[0]>>6));
-	  if (pf13_pressed) {
-		  pf13_pressed = 0;
-		  printf("PF13 press!\r\n");
-	  }
 
 	  if(rot_sw){
 		  rot_sw = 0;
@@ -338,28 +343,6 @@ int main(void)
 		  printf("rotary switch pressed! \r\n");
 	  }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-	  rot_count = ((TIM3->CNT) - 32768) >> 2;
-//	  printf("rotary count: %d\r\n", rot_count);
-=======
-	  int32_t cnt = (int32_t)TIM3->CNT;
-	  rot_count = (cnt - 32768) >> 2;
-	  printf("rotary count: %d\r\n", rot_count);
->>>>>>> e6c57f703057cdbb31548ac93298fc9b9058ac3b
-	  uart_buffer[3] = rot_count & 0x00FF;
-	  uart_buffer[2] = rot_count >> 8;
-
-//	      printf("-------------------------\r\n");
-//	      printf("x_raw: %lu, y_raw: %lu\r\n", x_raw, y_raw);
-//	      printf("dir: %d, out L: %d, out R: %d\r\n",
-//	             (int)dir, uart_buffer[0], uart_buffer[1]);
-
-	  HAL_UART_Transmit(&huart4, uart_buffer, 4, 100);
-	  HAL_Delay(20);
-//	  HAL_Delay(100);
-  }
-=======
         int32_t cnt = (int32_t)TIM3->CNT;
         rot_count = (cnt - 32768) >> 4;
         if(rot_count >= 32){
@@ -399,9 +382,8 @@ int main(void)
 		}
 
         HAL_UART_Transmit(&huart4, uart_buffer, 2, 100);
-        HAL_Delay(200);
+        HAL_Delay(300);
     }
->>>>>>> 5d139bf (just need to add speaker now)
   /* USER CODE END 3 */
 }
 
@@ -717,13 +699,16 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PE9 PE11 */
-  GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_11;
+  /*Configure GPIO pins : PE9 PE11 PE0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_11|GPIO_PIN_0;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+
   HAL_NVIC_SetPriority(EXTI1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 
