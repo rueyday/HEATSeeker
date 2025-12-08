@@ -288,11 +288,11 @@ static const uint16_t heatmap_rgb[16] = {
 	0b1111110000000010, // Orange-Red      (red + small green)
 	0b1110010000000100, // Orange          (red + more green)
 	0b1100011000001000, // Yellow-Orange   (red + even more green)
-	0b1000011100010000,
-	0b1000011110011000, // Near White      (very light gray/white-ish)
-	0b1000011111111000, // Yellow
-	0b1100011111111100, // White
-	0b1110011111111110, // White
+	0b1100011100010000,
+	0b1100011110011100, // Near White      (very light gray/white-ish)
+	0b1100011111111100, // Yellow
+	0b1110011111111100, // White
+	0b1111011111111110, // White
 	0xFFFF  // Pure White
 };
 
@@ -519,6 +519,10 @@ int main(void)
 
 			uint8_t new_batt_level = (batt_dir & 0b1110000) >> 4;
 			if (new_batt_level != batt_level) {
+				ST7735_DrawBlock(25, 85, 18, 0x0000);
+				ST7735_DrawBlock(43, 85, 18, 0x0000);
+				ST7735_DrawBlock(61, 85, 18, 0x0000);
+
 				ST7735_SetCursor(25, 85);
 
 				switch (new_batt_level) {
@@ -551,6 +555,7 @@ int main(void)
 			uint8_t new_left_mov = batt_dir & 0b11;
 
 			if (new_right_mov != right_mov || new_left_mov != left_mov) {
+				ST7735_DrawBlock(70, 115, 18, 0x0000);
 				ST7735_SetCursor(70, 115);
 				switch(new_left_mov) {
 					case 0b00:

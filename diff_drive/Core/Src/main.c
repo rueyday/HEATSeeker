@@ -664,14 +664,22 @@ int main(void)
 	          float t1 = raw1 * 0.25f;
 
 	          if (t1 < T_MIN) t1 = T_MIN;
-	          int p1 = (int)(((t1 - T_MIN) / (T_MAX - T_MIN)) * 15.0f);
+//	          int p1 = (int)(((t1 - T_MIN) / (T_MAX - T_MIN)) * 15.0f);
+	          float norm1 = (t1 - T_MIN) / (T_MAX - T_MIN);
+	          if (norm1 < 0) norm1 = 0;
+	          if (norm1 > 1) norm1 = 1;
+	          uint8_t p1 = (uint8_t)(norm1 * 15.0f + 0.5f);
 
 	          uint16_t raw2 = (buf[i*16 + (j+1)*2 + 1] << 8) | buf[i*16 + (j+1)*2];
 	          if (raw2 > 2047) raw2 -= 4096;
 	          float t2 = raw2 * 0.25f;
 
 	          if (t2 < T_MIN) t2 = T_MIN;
-	          int p2 = (int)(((t2 - T_MIN) / (T_MAX - T_MIN)) * 15.0f);
+//	          int p2 = (int)(((t2 - T_MIN) / (T_MAX - T_MIN)) * 15.0f);
+	          float norm2 = (t2 - T_MIN) / (T_MAX - T_MIN);
+	          if (norm2 < 0) norm2 = 0;
+	          if (norm2 > 1) norm2 = 1;
+	          uint8_t p2 = (uint8_t)(norm2 * 15.0f + 0.5f);
 
 	          temp_send[idx++] = (uint8_t)((p1 << 4) | (p2 & 0x0F));
 	      }
