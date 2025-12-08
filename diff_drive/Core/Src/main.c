@@ -96,6 +96,7 @@ int power = 0;
 int8_t button1 = 0;
 int8_t button2 = 0;
 static uint8_t last_button1 = 0;
+static uint8_t last_button2 = 0;
 
 volatile control_mode_t control_mode = MODE_IR_ONLY;
 
@@ -116,6 +117,7 @@ volatile control_mode_t control_mode = MODE_IR_ONLY;
 volatile uint8_t  buzzer_playing = 0;
 volatile uint32_t buzzer_idx = 0;
 volatile uint32_t buzzer_note_deadline_ms = 0;
+//volatile uint8_t button2press = 0;
 
 #define TIMER_CLK_HZ 4000000.0f
 
@@ -599,10 +601,10 @@ int main(void)
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
   HAL_Delay(1000);
-  xbee_router_setup();
-  HAL_Delay(1000);
-  xbee_ir_setup();
-  HAL_Delay(1000);
+//  xbee_router_setup();
+//  HAL_Delay(1000);
+//  xbee_ir_setup();
+//  HAL_Delay(1000);
 
   HAL_UART_Receive_IT(&huart5, xbee_int_buf, 4);
 //  HAL_UART_Receive_IT(&huart4, xbee_glass_int_buf, 2);
@@ -616,8 +618,7 @@ int main(void)
   led_SetIllum(&hspi1, 0x01);
   led_setColor(&hspi1, 0x00, 0x00, 0x10);
 
-
-
+  static songIdx = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -626,33 +627,14 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
+	  songIdx = songIdx % 5;
     /* USER CODE BEGIN 3 */
-	  //USING FOR DEBUG PURPOSES. COMMENT THIS CODE OUT WHEN DONE!!
-	    if (!test_started) {
-	        // pick which song you want:
-	        // Song 0 = levels, 1 = song2, 2 = song3, 3 = song4
-
-	        current_freqs = songs[1].freqs;
-	        current_durs  = songs[1].durs;
-	        current_len   = songs[1].len;
-
-	        buzzer_start_melody();
-	        test_started = 1;
-	    }
-//DEBUG END
 	  buzzer_service();
 
 	  float batt = batteryValue();
 //	  float percent = batteryPercent(batt);
 	  printf("battery value: %f\r\n", batt);
 //	  printf("battery percent: %f\r\n", percent);
-
-//	  uint8_t temp_send[32];
-//	  float span  = T_MAX - T_MIN;
-//	  //normalize
-//	  float n1 = (t1 - T_MIN) / span;\
-//	  n1 *= gain;
 
 	  uint8_t temp_send[32];
 	  uint8_t batt_dir = batteryLevel(batt) &0b111 << 2;
@@ -667,16 +649,22 @@ int main(void)
 		  button1 = info & 0x01;
 		  button2 = (info >> 1) & 0x01;
 
+		  current_freqs = songs[songIdx].freqs;
+		  current_durs = songs[songIdx].durs;
+		  current_len = songs[songIdx].len;
 //		   start melody only when button goes 0 -> 1 and nothing is currently playing
-		  if (button1 && !last_button1 && !buzzer_playing) {
-		      //implement a state machine for this later (each button press advances the song idx make it a circular buffer so it wraps
-		      // current_freqs = songs[0].freqs;
-		      // current_durs  = songs[0].durs;
-		      // current_len   = songs[0].len;
-
-		      buzzer_start_melody();
+		  if (button1 && !last_button1) {
+			  buzzer_start_melody();
+		  }else if(!button1){
+			  buzzer_playing = 0;
+			  HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
 		  }
+		  if ((button2 == !last_button2) && !buzzer_playing) {
+			  songIdx++;
+		  }
+
 		  last_button1 = button1;
+		  last_button2 = button2;
 
 		  if(info>>7){
 			  rot_val = (int8_t)((info & 0b01111100)>>2);
@@ -740,8 +728,8 @@ int main(void)
 
 	  int idx = 0;
 
-	  float T_MIN = 18.0f + (float)rot_val;
-	  float T_MAX = 32.0f + (float)rot_val;
+	  float T_MIN = 6.0f + (float)rot_val;
+	  float T_MAX = 24.0f + (float)rot_val;
 
 	  for (int i = 0; i < 8; i++) {
 	      for (int j = 0; j <= 6; j += 2) {   // flipped left-right
@@ -772,12 +760,12 @@ int main(void)
 	      }
 	  }
 
-	  for (uint8_t i = 0; i < 32; i++) {
-		  uint8_t byte = temp_send[i];
-		  printf("%d %d  ", (byte >> 4) & 0x0F, byte & 0x0F);
-		  if (i % 4 == 3) printf("\n\r");
-	  }
-	  printf("-----------\n\r");
+//	  for (uint8_t i = 0; i < 32; i++) {
+//		  uint8_t byte = temp_send[i];
+//		  printf("%d %d  ", (byte >> 4) & 0x0F, byte & 0x0F);
+//		  if (i % 4 == 3) printf("\n\r");
+//	  }
+//	  printf("-----------\n\r");
 
 	  if ((control_mode == MODE_IR_ONLY) && power){
 		  led_setColor(&hspi1, 0xFF, 0x00, 0x00);
@@ -812,9 +800,9 @@ int main(void)
 
 		  //PI CONTROLLER
 		  float rotate_error = ((float)target_col) - 3.5f; //0+7/2
-		  float forward_error = ((float)target_row) - 3.5f; //0+7/2
+		  float forward_error = ((float)target_row) - 2.0f; //0+7/2
 
-		  if (frame_max_val < 4){
+		  if (frame_max_val < 2){
 			  motor_left_stop();
 			  motor_right_stop();
 			  batt_dir = ((batt_dir | 0b00) << 2) | 0b00;
@@ -822,9 +810,10 @@ int main(void)
 			  if(-1<rotate_error && rotate_error<1){
 				  rotate_error = 0;
 			  }
-			  if(-3<forward_error && forward_error <2){
-				  forward_error = 0;
-			  }
+//			  rotate_error = 0;
+//			  if(0<forward_error && forward_error <5){
+//				  forward_error = 0;
+//			  }
 
 			  float steering = Kp_rot * rotate_error;
 			  float  forward = Kp_x * forward_error;
@@ -866,7 +855,7 @@ int main(void)
 		  printf("[debug] UART4 transmit failed\n");
 	  }
 	  HAL_UART_Transmit(&huart4, &batt_dir, 1, 100);
-	  HAL_Delay(400);
+	  HAL_Delay(100);
   }
   /* USER CODE END 3 */
 }
