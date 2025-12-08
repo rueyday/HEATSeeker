@@ -277,22 +277,23 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 // =======================================
 
 static const uint16_t heatmap_rgb[16] = {
-    0x001F, // Deep Blue
-    0x101F, // Blue
-    0x401F, // Blue-Purple
-    0x781F, // Purple
-    0xF81F, // Magenta
-    0xF801, // Magenta→Red
-    0xF800, // Red
-    0xFC00, // Orange-Red
-    0xFE00, // Orange
-    0xFF00, // Yellow-Orange
-    0xFFE0, // Yellow
-    0xFFF0, // Light Yellow
-    0xFFFF, // Near White
-    0xFFFF, // White
-    0xFFFF, // White
-    0xFFFF  // Pure White
+		// RRRRR GGGGGG BBBBB
+	0b0000000000010000, // Deep Blue       (dark blue)
+	0b0000000000011000, // Blue            (full blue)
+	0b1000000000011100, // Blue-Purple     (some red + full blue)
+	0b1100000000011000, // Purple          (more red + full blue)
+	0b1110000000010000, // Magenta         (full red + full blue)
+	0b1111000000001000, // Magenta→Red     (red with a little blue)
+	0b1111100000000100, // Red             (full red)
+	0b1111110000000010, // Orange-Red      (red + small green)
+	0b1110010000000100, // Orange          (red + more green)
+	0b1100011000001000, // Yellow-Orange   (red + even more green)
+	0b1000011100010000,
+	0b1000011110011000, // Near White      (very light gray/white-ish)
+	0b1000011111111000, // Yellow
+	0b1100011111111100, // White
+	0b1110011111111110, // White
+	0xFFFF  // Pure White
 };
 
 void interpolate8x8_to_32x32(void)
@@ -418,8 +419,8 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-//  memset(raw_frame, 0, sizeof(raw_frame));
-//  memset(draw_queue, 0, sizeof(draw_queue));
+  memset(raw_frame, 0, sizeof(raw_frame));
+  memset(draw_queue, 0, sizeof(draw_queue));
 
   /* USER CODE END Init */
 
@@ -484,14 +485,37 @@ int main(void)
 	  			uint8_t val1 = (byte >> 4) & 0x0F;
 	  			uint8_t val2 = byte & 0x0F;
 
+	  			uint8_t row = i/4;
+	  			uint8_t col1 = 2*(i%4);
+	  			uint8_t col2 = 1+2*(i%4);
+	  			if (val1 != raw_frame[row][col1]) {
+	  				raw_frame[row][col1] = val1;
+	  				draw_queue[row][col1] = true;
+	  			} else {
+	  				draw_queue[row][col1] = false;
+	  			}
 
-	  			raw_frame[i/4][2*(i%4)] = val1;
-	  			raw_frame[i/4][1+2*(i%4)] = val2;
+	  			if (val2 != raw_frame[row][col2]) {
+					raw_frame[row][col2] = val2;
+					draw_queue[row][col2] = true;
+				} else {
+					draw_queue[row][col2] = false;
+				}
+//	  			raw_frame[row][col1] = val1;
+//	  			raw_frame[row][col2] = val2;
 	  		}
 	  		for (int i = 0; i < 8; i++) {
 				printf("%d %d  %d %d  %d %d  %d %d\n\r", raw_frame[i][0], raw_frame[i][1], raw_frame[i][2], raw_frame[i][3], raw_frame[i][4], raw_frame[i][5], raw_frame[i][6], raw_frame[i][7]);
 			}
-	  		ST7735_DrawFullGrid();
+//	  		ST7735_DrawFullGrid();
+//	  		ST7735_SetAddrWindow(30, 0, 93, 63);
+	  		for (int i = 0; i < 8; i++) {
+	  			for (int j = 0; j < 8; j++) {
+	  				if (draw_queue[i][j]) {
+	  					ST7735_DrawBlock(30 + i*8, j*8, 8, heatmap_rgb[raw_frame[i][j]]);
+	  				}
+	  			}
+	  		}
 
 			uint8_t new_batt_level = (batt_dir & 0b1110000) >> 4;
 			if (new_batt_level != batt_level) {
@@ -569,6 +593,11 @@ int main(void)
 
 
 	  	 }
+
+//	  for (int i = 0; i < 16; i++) {
+//		  ST7735_FillScreen(heatmap_rgb[i]);
+//		  HAL_Delay(500);
+//	  }
 	  	  // Simple test: cycle colors so you KNOW the TFT works
 //	  	  ST7735_FillScreen(RED);
 //	  	  printf("Fill RED\r\n");
