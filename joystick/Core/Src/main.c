@@ -211,7 +211,6 @@ uint8_t adc_to_8bit(uint32_t adc_val) {
 
 #define X_CENTER_ADC   1890.0f   // approximate X center (adc_buffer[0])
 #define Y_CENTER_ADC   1830.0f   // approximate Y center (adc_buffer[1])
-//#define R_DEADZONE_ADC 150.0f    // deadzone radius in ADC units, tune
 
 uint8_t encode_direction(uint32_t x_raw, uint32_t y_raw)
 {
@@ -250,7 +249,6 @@ uint8_t encode_direction(uint32_t x_raw, uint32_t y_raw)
 	if(right_val > 0){
 		right_command += 4;
 	}
-//	printf("left: %d, right: %d \n\r", left_command, right_command);
 	return left_command * 8 + right_command;
 }
 
@@ -308,8 +306,7 @@ int main(void)
     /* USER CODE BEGIN 3 */
 	  int32_t x_raw = adc_buffer[0];  // check which is X / Y on your board
 	  int32_t y_raw = adc_buffer[1];
-
-//	  dir_t dir = joystick_get_direction();
+    
 	  uart_buffer[0] = encode_direction(x_raw, y_raw);
 
 	  if (pe9_pressed) {
@@ -335,7 +332,6 @@ int main(void)
 	  }else{
 		  uart_buffer[0] &= 0b10111111;
 	  }
-//	  printf("command: %d \n", (uart_buffer[0]>>6));
 
 	  if(rot_sw){
 		  rot_sw = 0;

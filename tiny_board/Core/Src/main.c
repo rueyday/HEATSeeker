@@ -43,7 +43,6 @@
 #include "math.h"
 #include "string.h"
 #include "fonts.h"
-//#include "oled_driver.h"
 #include "st7735.h"
 #include <stdbool.h>
 /* USER CODE END Includes */
@@ -218,15 +217,9 @@ void xbee_router_setup() {
 
 }
 
-
-
-
-
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 
     if (huart == &huart1) {
-//    	printf("XBEE RECEIVED!! %d\n", indx);
-//    	printf("%02X ", xbee_byte);
     	switch (xbee_state) {
     	case FIRST_WAIT:
     		if (xbee_byte == 0xAA) {   // 헤더 발견!
@@ -243,7 +236,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     		break;
     	case READ_PAYLOAD:
 			uart_buffer[indx++] = xbee_byte;
-//			printf("%d: %d\n\r", indx, xbee_byte);
 
 			if(indx == 32){
 				xbee_state = BATT_DIR;
@@ -318,12 +310,6 @@ void interpolate8x8_to_32x32(void)
             float v0 = v00 + dx * (v01 - v00);
             float v1 = v10 + dx * (v11 - v10);
             uint8_t v = (uint8_t)(v0 + dy * (v1 - v0) + 0.5f);
-
-//            if (v != image_frame[y][x]) {
-//                draw_queue[y][x] = true;
-//            } else {
-//                draw_queue[y][x] = false;
-//            }
         }
     }
 }
@@ -351,25 +337,9 @@ void interpolate8x8_to_40x40(void)
             float v0 = v00 + dx * (v01 - v00);
             float v1 = v10 + dx * (v11 - v10);
             uint8_t v = (uint8_t)(v0 + dy * (v1 - v0) + 0.5f);
-//
-//            if (v != image_frame[y][x]) {
-//                draw_queue[y][x] = true;
-//            } else {
-//                draw_queue[y][x] = false;
-
-//            }
         }
     }
 }
-
-//void ST7735_DrawBlock(int x, int y, int size, uint16_t color)
-//{
-//  for (int j = 0; j < size; j++) {
-//	  for (int i = 0; i < size; i++) {
-//		  ST7735_DrawPixel(x + i, y + j, color);
-//	  }
-//  }
-//}
 
 void ST7735_DrawFullGrid(void)
 {
@@ -455,7 +425,6 @@ int main(void)
    ST7735_Init(&hspi1);
 
    HAL_Delay(1000);
-//   ST7735_FillScreen(RED);
 
    ST7735_SetCursor(25, 65);
    ST7735_WriteString("BATT:", Font_11x18, WHITE);
@@ -497,17 +466,13 @@ int main(void)
 	  			if (val2 != raw_frame[row][col2]) {
 					raw_frame[row][col2] = val2;
 					draw_queue[row][col2] = true;
-				} else {
-					draw_queue[row][col2] = false;
-				}
-//	  			raw_frame[row][col1] = val1;
-//	  			raw_frame[row][col2] = val2;
+          } else {
+            draw_queue[row][col2] = false;
+          }
 	  		}
 	  		for (int i = 0; i < 8; i++) {
-				printf("%d %d  %d %d  %d %d  %d %d\n\r", raw_frame[i][0], raw_frame[i][1], raw_frame[i][2], raw_frame[i][3], raw_frame[i][4], raw_frame[i][5], raw_frame[i][6], raw_frame[i][7]);
-			}
-//	  		ST7735_DrawFullGrid();
-//	  		ST7735_SetAddrWindow(30, 0, 93, 63);
+          printf("%d %d  %d %d  %d %d  %d %d\n\r", raw_frame[i][0], raw_frame[i][1], raw_frame[i][2], raw_frame[i][3], raw_frame[i][4], raw_frame[i][5], raw_frame[i][6], raw_frame[i][7]);
+        }
 	  		for (int i = 0; i < 8; i++) {
 	  			for (int j = 0; j < 8; j++) {
 	  				if (draw_queue[i][j]) {
@@ -593,38 +558,7 @@ int main(void)
 				right_mov = new_right_mov;
 				left_mov = new_left_mov;
 			}
-
-
-
-	  	 }
-
-//	  for (int i = 0; i < 16; i++) {
-//		  ST7735_FillScreen(heatmap_rgb[i]);
-//		  HAL_Delay(500);
-//	  }
-	  	  // Simple test: cycle colors so you KNOW the TFT works
-//	  	  ST7735_FillScreen(RED);
-//	  	  printf("Fill RED\r\n");
-//	  	  HAL_Delay(500);
-//	  	  ST7735_FillScreen(GREEN);
-//	  	  printf("Fill GREEN\r\n");
-//	  	  HAL_Delay(500);
-//	  	  ST7735_FillScreen(BLUE);
-//	  	  printf("Fill BLUE\r\n");
-//	  	  HAL_Delay(500);
-//	  	  ST7735_FillScreen(BLACK);
-//	  	  printf("Fill BLACK\r\n");
-//
-//	  	  HAL_Delay(500);
-	     // Fake heatmap data: gradient pattern
-//	     for (int i = 0; i < 8; i++) {
-//	         for (int j = 0; j < 8; j++) {
-//	             raw_frame[i][j] = (i * 2 + j) & 0x0F;  // values 0..15
-//	         }
-//	     }
-//	     ST7735_DrawFullGrid();
-//	     HAL_Delay(200);
-//	  	 HAL_Delay(100);
+	  	}
   }
   /* USER CODE END 3 */
 }
