@@ -7,11 +7,9 @@
 
 #include "led.h"
 #include "stdint.h"
-//#include "stm32l4xx.h"
 
 SPI_HandleTypeDef *hspi;
 static ledFrame leds;
-//struct ledFrame;
 uint8_t spiFrame[startFrame_Size + 4 * led_count + endFrame_Size];
 
 void led_Update(SPI_HandleTypeDef *hspi) {
@@ -40,7 +38,6 @@ void led_Init(SPI_HandleTypeDef *hspi) {
 }
 
 void led_setColor(SPI_HandleTypeDef *hspi, uint8_t red, uint8_t green, uint8_t blue) {
-//	ledFrame.illum = 0x00;
 	leds.red = red;
 	leds.green = green;
 	leds.blue = blue;
@@ -51,4 +48,3 @@ void led_SetIllum(SPI_HandleTypeDef *hspi, uint8_t illum) {
 	leds.illum = illum;
 	led_Update(hspi);
 }
-

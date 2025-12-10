@@ -57,7 +57,6 @@ TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
-//uint8_t uart_buffer[2];
 char xbee_buffer[100];
 uint8_t xbee_int_buf[4];
 volatile uint8_t xbee_int_ready = 0;
@@ -78,9 +77,9 @@ uint8_t brightest_history[HISTORY_LEN];
 uint8_t history_pos = 0; // where to write next
 uint8_t history_count = 0; // how many valid entries (<= 50)
 
-//for PI controller
-const float Kp_x = 8000.0f;//tune!
-const float Kp_rot = 13000.0f;//tune!
+//for P controller
+const float Kp_x = 8000.0f;
+const float Kp_rot = 13000.0f;
 
 const float Ki = 0.0f;//also tune
 const float dt = 0.03f;//30ms
@@ -112,12 +111,9 @@ volatile control_mode_t control_mode = MODE_IR_ONLY;
 #define RED_Port	GPIOF
 #define RED_Pin		GPIO_PIN_12
 
-//music buzzer stuff
-
 volatile uint8_t  buzzer_playing = 0;
 volatile uint32_t buzzer_idx = 0;
 volatile uint32_t buzzer_note_deadline_ms = 0;
-//volatile uint8_t button2press = 0;
 
 #define TIMER_CLK_HZ 4000000.0f
 
@@ -158,10 +154,6 @@ static const float *current_freqs = levels_freqs;
 static const float *current_durs  = levels_durs;
 static uint32_t     current_len   = sizeof(levels_freqs)/sizeof(levels_freqs[0]);
 
-//
-//static const int buzzer_num_notes = sizeof(buzzer_freqs) / sizeof(buzzer_freqs[0]);
-
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -194,7 +186,7 @@ int xbee_readline(char *buf, int maxlen, UART_HandleTypeDef *huartx)
     uint8_t ch;
     while (i < maxlen - 1) {
         if (HAL_UART_Receive(huartx, &ch, 1, 500) != HAL_OK) {
-            break;  // timeout
+            break;
         }
         buf[i++] = ch;
         if (ch == '\r' || ch == '\n') break;
@@ -204,8 +196,6 @@ int xbee_readline(char *buf, int maxlen, UART_HandleTypeDef *huartx)
 }
 
 void xbee_send(const char* cmd, UART_HandleTypeDef *huartx) {
-//	HAL_UART_Transmit(huartx, (uint8_t*)cmd, strlen(cmd), 100);
-//	HAL_UART_Transmit(huartx, (uint8_t*)"\r", 1, 100);
 	uint8_t resp[8];
 
 	HAL_UART_Transmit(huartx, (uint8_t*)cmd, strlen(cmd), 100);
@@ -221,9 +211,6 @@ uint8_t xbee_enter_command(UART_HandleTypeDef *huartx)
     uint8_t resp[8];
     HAL_StatusTypeDef st;
 
-//    HAL_Delay(1000);   // guard time before
-//    uint8_t plus[3] = {'+', '+', '+'};
-//    HAL_UART_Transmit(&huart5, plus, 3, 100);
     HAL_Delay(1000);   // 1.2 sec
     HAL_UART_Transmit(huartx, (uint8_t*)"+++", 3, 100);
     HAL_Delay(1000);
@@ -375,31 +362,16 @@ float batteryValue(){
         HAL_ADC_Stop(&hadc1);
         return -1.0f; //error
     }
-
-//    float sum = 0;
-//    for (int i = 0; i < 500; i++){
-//    	sum += HAL_ADC_GetValue(&hadc1);
-//    }
+    
     uint32_t raw = HAL_ADC_GetValue(&hadc1);
     printf("ADC raw = %lu\r\n", raw);
-
-    //vadc = raw / 4096 * vref
+    
     float VADC = (raw / MAX) * VREF;
     float VBAT = VADC / scale;
 
     return VBAT;
 }
 uint8_t batteryLevel(float vbat){
-//	float sum = 0;
-//	if (VBAT > 9.0){
-//		for (int i = 0; i < 500; i++){
-//			sum += 27.78 * VBAT - 250.0;
-//		}
-//		return sum / 500.0; //avg 500 samples
-//
-//	}
-//	else{
-//		return 0;
 	const float V_EMPTY = 9.0f;
 	    const float V_FULL  = 12.6f;
 	    if (vbat <= V_EMPTY) return 0;
@@ -440,72 +412,6 @@ uint8_t batteryLevel(float vbat){
 	}
 	return level;
 }
-
-uint8_t batteryPercent(float vbat){
-//	float sum = 0;
-//	if (VBAT > 9.0){
-//		for (int i = 0; i < 500; i++){
-//			sum += 27.78 * VBAT - 250.0;
-//		}
-//		return sum / 500.0; //avg 500 samples
-//
-//	}
-//	else{
-//		return 0;
-	const float V_EMPTY = 9.0f;
-	    const float V_FULL  = 12.6f;
-	    if (vbat <= V_EMPTY) return 0;
-	    if (vbat >= V_FULL)  return 100;
-
-	    float pct_f = (vbat - V_EMPTY) * 100.0f / (V_FULL - V_EMPTY);
-	    if (pct_f < 0)   pct_f = 0;
-	    if (pct_f > 100) pct_f = 100;
-
-	    uint8_t pct = (uint8_t)(pct_f + 0.5f);
-
-	    static uint8_t level = 0;
-	    static uint8_t initialized = 0;
-
-	    // thresholds in % for each step
-	    // going UP:   15, 35, 55, 75, 95
-	    // going DOWN:  0, 25, 45, 65, 85
-	    static const uint8_t up[]   = {15, 35, 55, 75, 95};
-	    static const uint8_t down[] = { 0, 25, 45, 65, 85};
-
-	    if (!initialized) {
-	        if      (pct >= 90) level = 5;
-	        else if (pct >= 70) level = 4;
-	        else if (pct >= 50) level = 3;
-	        else if (pct >= 30) level = 2;
-	        else if (pct >= 10) level = 1;
-	        else                level = 0;
-	        initialized = 1;
-	    } else {
-	        if (level < 5 && pct > up[level]) {
-	            level++;
-	        } else if (level > 0 && pct < down[level - 1]) {
-	            level--;
-	        }
-    }
-
-    switch(level){
-		case 0:
-			return 0;
-		case 1:
-			return 20;
-		case 2:
-			return 40;
-		case 3:
-			return 60;
-		case 4:
-			return 80;
-		case 5:
-			return 100;
-		default:
-			return 0;
-    	}
-	}
-
 
 static void buzzer_start_note(uint32_t i)
 {
@@ -601,13 +507,8 @@ int main(void)
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
   HAL_Delay(1000);
-//  xbee_router_setup();
-//  HAL_Delay(1000);
-//  xbee_ir_setup();
-//  HAL_Delay(1000);
-
   HAL_UART_Receive_IT(&huart5, xbee_int_buf, 4);
-//  HAL_UART_Receive_IT(&huart4, xbee_glass_int_buf, 2);
+
   uint8_t command;
   uint8_t info;
   int8_t rot_val = 0;
@@ -627,14 +528,13 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-	  songIdx = songIdx % 5;
+	  
     /* USER CODE BEGIN 3 */
+    songIdx = songIdx % 5;
 	  buzzer_service();
 
 	  float batt = batteryValue();
-//	  float percent = batteryPercent(batt);
 	  printf("battery value: %f\r\n", batt);
-//	  printf("battery percent: %f\r\n", percent);
 
 	  uint8_t temp_send[32];
 	  uint8_t batt_dir = batteryLevel(batt) &0b111 << 2;
@@ -652,7 +552,7 @@ int main(void)
 		  current_freqs = songs[songIdx].freqs;
 		  current_durs = songs[songIdx].durs;
 		  current_len = songs[songIdx].len;
-//		   start melody only when button goes 0 -> 1 and nothing is currently playing
+      
 		  if (button1 && !last_button1) {
 			  buzzer_start_melody();
 		  }else if(!button1){
@@ -732,14 +632,12 @@ int main(void)
 	  float T_MAX = 24.0f + (float)rot_val;
 
 	  for (int i = 0; i < 8; i++) {
-	      for (int j = 0; j <= 6; j += 2) {   // flipped left-right
-
+	      for (int j = 0; j <= 6; j += 2) {
 	          uint16_t raw1 = (buf[i*16 + j*2 + 1] << 8) | buf[i*16 + j*2];
 	          if (raw1 > 2047) raw1 -= 4096;
 	          float t1 = raw1 * 0.25f;
 
 	          if (t1 < T_MIN) t1 = T_MIN;
-//	          int p1 = (int)(((t1 - T_MIN) / (T_MAX - T_MIN)) * 15.0f);
 	          float norm1 = (t1 - T_MIN) / (T_MAX - T_MIN);
 	          if (norm1 < 0) norm1 = 0;
 	          if (norm1 > 1) norm1 = 1;
@@ -750,7 +648,6 @@ int main(void)
 	          float t2 = raw2 * 0.25f;
 
 	          if (t2 < T_MIN) t2 = T_MIN;
-//	          int p2 = (int)(((t2 - T_MIN) / (T_MAX - T_MIN)) * 15.0f);
 	          float norm2 = (t2 - T_MIN) / (T_MAX - T_MIN);
 	          if (norm2 < 0) norm2 = 0;
 	          if (norm2 > 1) norm2 = 1;
@@ -760,12 +657,12 @@ int main(void)
 	      }
 	  }
 
-//	  for (uint8_t i = 0; i < 32; i++) {
-//		  uint8_t byte = temp_send[i];
-//		  printf("%d %d  ", (byte >> 4) & 0x0F, byte & 0x0F);
-//		  if (i % 4 == 3) printf("\n\r");
-//	  }
-//	  printf("-----------\n\r");
+	  for (uint8_t i = 0; i < 32; i++) {
+		  uint8_t byte = temp_send[i];
+		  printf("%d %d  ", (byte >> 4) & 0x0F, byte & 0x0F);
+		  if (i % 4 == 3) printf("\n\r");
+	  }
+	  printf("-----------\n\r");
 
 	  if ((control_mode == MODE_IR_ONLY) && power){
 		  led_setColor(&hspi1, 0xFF, 0x00, 0x00);
@@ -793,14 +690,13 @@ int main(void)
 		  }else if (col > target_col){
 			  target_col++;
 		  }
-
-
+      
 		  printf("[Target]frame max idx=%d val=%d, stable idx=%d (row=%d col=%d)\n\r",
 		             frame_max_idx, frame_max_val, stable_idx, target_row, target_col);
 
-		  //PI CONTROLLER
-		  float rotate_error = ((float)target_col) - 3.5f; //0+7/2
-		  float forward_error = ((float)target_row) - 2.0f; //0+7/2
+		  //P CONTROLLER
+		  float rotate_error = ((float)target_col) - 3.5f;
+		  float forward_error = ((float)target_row) - 2.0f;
 
 		  if (frame_max_val < 2){
 			  motor_left_stop();
@@ -810,10 +706,9 @@ int main(void)
 			  if(-1<rotate_error && rotate_error<1){
 				  rotate_error = 0;
 			  }
-//			  rotate_error = 0;
-//			  if(0<forward_error && forward_error <5){
-//				  forward_error = 0;
-//			  }
+			  if(0<forward_error && forward_error <5){
+				  forward_error = 0;
+			  }
 
 			  float steering = Kp_rot * rotate_error;
 			  float  forward = Kp_x * forward_error;
@@ -825,28 +720,20 @@ int main(void)
 				  uint32_t rotate_pwm =	70000 + (uint32_t)(right_command);
 				  motor_right_forward(rotate_pwm);
 				  batt_dir = (batt_dir | 0b01) << 2;
-//				  printf("[debug] Right: PI: err=%.2f, integ=%.2f, steer=%.2f, pwm=%ld\r\n",
-//						  rotate_error, error_integral, steering, rotate_pwm);
 			  }else{
 				  uint32_t rotate_pwm =	70000 + (uint32_t)(-right_command);
 				  motor_right_reverse(rotate_pwm);
 				  batt_dir = (batt_dir | 0b10) << 2;
-//				  printf("[debug] Right: PI: err=%.2f, integ=%.2f, steer=%.2f, pwm=%ld\r\n",
-//						  rotate_error, error_integral, steering, rotate_pwm);
 			  }
 
 			  if(left_command > 0){
 				  uint32_t rotate_pwm =	70000 + (uint32_t)(left_command);
 				  motor_left_forward(rotate_pwm);
 				  batt_dir = batt_dir | 0b01;
-//				  printf("[debug] Left: PI: err=%.2f, integ=%.2f, steer=%.2f, pwm=%ld\r\n",
-//				  						  rotate_error, error_integral, steering, rotate_pwm);
 			  }else{
 				  uint32_t rotate_pwm =	70000 + (uint32_t)(-left_command);
 				  motor_left_reverse(rotate_pwm);
 				  batt_dir = batt_dir | 0b10;
-//				  printf("[debug] Left: PI: err=%.2f, integ=%.2f, steer=%.2f, pwm=%ld\r\n",
-//						  rotate_error, error_integral, steering, rotate_pwm);
 			  }
 		  }
 	  }
