@@ -378,7 +378,7 @@ int main(void)
 		}
 
         HAL_UART_Transmit(&huart4, uart_buffer, 2, 100);
-        HAL_Delay(300);
+        HAL_Delay(100);
     }
   /* USER CODE END 3 */
 }

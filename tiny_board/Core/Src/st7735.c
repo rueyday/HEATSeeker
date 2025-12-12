@@ -96,15 +96,6 @@ void ST7735_FillScreen(uint16_t color)
 }
 
 void ST7735_DrawBlock(int x, int y, int size, uint16_t color) {
-//	ST7735_SetAddrWindow(x, y, x+size, y+size);
-//	ST7735_DC_HIGH();
-//	ST7735_CS_LOW();
-//	for (int j = 0; j < size; j++) {
-//	  for (int i = 0; i < size; i++) {
-//		  ST7735_DrawPixel(x + i, y + j, color);
-//	  }
-//	}
-//	ST7735_CS_HIGH();
 	uint8_t data[] = { color >> 8, color & 0xFF };
 
 	ST7735_SetAddrWindow(x, y, x+size, y+size);
