@@ -572,7 +572,7 @@ int main(void)
 			  rot_val = -(int8_t)((info & 0b01111100)>>2);
 		  }
 
-		  printf("buttons: %d, %d | rotation: %d\r\n", button1, button2, rot_val);
+//		  printf("buttons: %d, %d | rotation: %d\r\n", button1, button2, rot_val);
 		  if(command >> 7){
 			  power = 1;
 		  }
@@ -582,7 +582,7 @@ int main(void)
 			  motor_left_stop();
 			  motor_right_stop();
 		  }
-		  printf("[debug] switch mode: %d \n", (command >> 6));
+//		  printf("[debug] switch mode: %d \n", (command >> 6));
 		  if((command >> 6) & 0b1){
 			  control_mode = MODE_JOYSTICK;
 		  }else{
@@ -598,7 +598,7 @@ int main(void)
 			  uint8_t left_command = command & 0b11;
 			  int left_dir = command & 0b100;
 
-			  printf("left: %d, right: %d\n\r", left_command, right_command);
+//			  printf("left: %d, right: %d\n\r", left_command, right_command);
 
 			  uint32_t right_pwm = (50000*(uint32_t)right_command)/3+70000;
 			  if(right_command == 0){
@@ -628,8 +628,8 @@ int main(void)
 
 	  int idx = 0;
 
-	  float T_MIN = 6.0f + (float)rot_val;
-	  float T_MAX = 24.0f + (float)rot_val;
+	  float T_MIN = 12.0f + (float)rot_val;
+	  float T_MAX = 28.0f + (float)rot_val;
 
 	  for (int i = 0; i < 8; i++) {
 	      for (int j = 0; j <= 6; j += 2) {
@@ -690,15 +690,16 @@ int main(void)
 		  }else if (col > target_col){
 			  target_col++;
 		  }
-      
-		  printf("[Target]frame max idx=%d val=%d, stable idx=%d (row=%d col=%d)\n\r",
-		             frame_max_idx, frame_max_val, stable_idx, target_row, target_col);
+
+
+//		  printf("[Target]frame max idx=%d val=%d, stable idx=%d (row=%d col=%d)\n\r",
+//		             frame_max_idx, frame_max_val, stable_idx, target_row, target_col);
 
 		  //P CONTROLLER
 		  float rotate_error = ((float)target_col) - 3.5f;
 		  float forward_error = ((float)target_row) - 2.0f;
 
-		  if (frame_max_val < 2){
+		  if (frame_max_val < 1){
 			  motor_left_stop();
 			  motor_right_stop();
 			  batt_dir = ((batt_dir | 0b00) << 2) | 0b00;
