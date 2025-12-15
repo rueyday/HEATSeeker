@@ -1,34 +1,50 @@
-# HEATSeeker: Smart Glasses with Remote-Operated Rescue Robot
+# HEATSeeker — Smart Glasses + Remote Rescue Robot
 
+**Project Website:** https://rueyday.github.io/HEATSeeker/  
+**Video Demo:** https://www.youtube.com/watch?v=UyH7BJMXlRg  
 
-> **[Watch the HEATSeeker Video Demo!](https://www.youtube.com/watch?v=Ano5yxAiWmE)**
-> **[Visit the Project Website Here]** (Insert actual project webpage link)
+**Contributors:** Jungeun Seo · Sophie Yang · Ruey Day · Yi Keen Lim  
+**Course:** EECS 373 (Embedded Systems), University of Michigan
 
-**Contributors:** Jungeun Seo • Sophie Yang • Ruey Day • Yi Keen Lim  
-**Course:** EECS 373 (Embedded Systems) at the University of Michigan  
+## Repository Overview
 
----
+This repository contains the firmware and embedded code for HEATSeeker — a thermal-guided search-and-rescue robot with head-mounted smart glasses.
 
-## Project Overview
+## What Each Folder Is
 
-**Heat Seeker** is an embedded systems project that integrates smart glasses and a remote-operated rescue robot to track and visualize heat signatures. The system enables a user to monitor a robot’s thermal camera feed through a head-up display (HUD) embedded in the glasses and control the robot remotely using a wireless controller. The goal is to provide a lightweight, responsive, and intuitive human–robot interface for search-and-rescue applications.
+### `diff_drive/`  
+Firmware for the rescue robot’s differential-drive system.  
+Includes:
+- Motor control routines  
+- Thermal camera capture  
+- XBee transmit/receive logic  
 
----
+### `joystick/`  
+Handheld controller firmware:
+- STM32 joystick + rotary knob
+- Mode buttons
+- XBee command transmitter
 
-## System Description
+### `tiny_board/`  
+HUD glasses firmware:
+- LCD thermal visualization
+- Battery + mode indicators
+- XBee receive logic
 
-### Smart Glasses
-- **HUD Display:** Shows live robot camera feed, battery level, system heat, and movement direction.
-- **Control Panel:** Two physical buttons on the glasses’ temple:
-  - **Mode Button:** Switches between HUD display modes.
-  - **Scale Button:** Adjusts the display scale (accounts for focal length).
-- **Wireless Communication:** Receives robot telemetry and video feed via XBee module.
+### `python/`  
+Supporting Python code for offline visualization, logging, or testing
 
-### Rescue Robot
-- **Thermal Tracking:** Equipped with an **AMG8833 IR thermal camera** to detect and follow heat signatures.
-- **Wireless Control:** Receives navigation commands from the controller over XBee.
-- **Feedback:** Sends camera images and system status (e.g., temperature, battery) to the glasses.
+## Requirements
 
-### Remote Controller
-- **User Input:** Sends directional and motion commands to the robot.
-- **Wireless Link:** Uses XBee for communication with the robot.
+### Tools
+- **STM32CubeIDE**
+- **ST-Link**
+- USB drivers for your device
+
+### Hardware
+- STM32 boards (one per subsystem)
+- XBee radios
+- AMG8833 thermal sensor (robot)
+- Joystick + rotary knob (controller)
+- LCD/OLED (HUD)
+- Motors + driver (robot)
